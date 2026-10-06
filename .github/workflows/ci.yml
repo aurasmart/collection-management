@@ -29,6 +29,13 @@ jobs:
       - run: npm run build
         env:
           VITE_API_URL: https://api.example.invalid
+          VITE_SUPABASE_URL: https://project.supabase.co
+          VITE_SUPABASE_ANON_KEY: public-anon-key
+      - name: Backend secrets must not be in the browser bundle
+        run: |
+          if grep -rEiq "SERVICE_ROLE_KEY|TOKEN_ENC_KEY|TOKEN_HMAC_SECRET|ANTHROPIC_API_KEY|sk-ant-" apps/web/dist; then
+            echo "backend-only secret name found in the web bundle"; exit 1
+          fi
 
   api:
     runs-on: ubuntu-latest

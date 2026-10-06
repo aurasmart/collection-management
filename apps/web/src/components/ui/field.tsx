@@ -1,4 +1,4 @@
-import { useId, type ComponentProps, type ReactNode } from 'react'
+import { forwardRef, useId, type ComponentProps, type ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/cn'
 
@@ -12,16 +12,10 @@ export interface TextFieldProps extends Omit<ComponentProps<'input'>, 'prefix'> 
 }
 
 /** Labelled input with helper + error wiring (Stage 2 §24 inline validation, §27 forms). */
-export function TextField({
-  label,
-  helper,
-  error,
-  prefix,
-  required,
-  className,
-  id,
-  ...rest
-}: TextFieldProps) {
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
+  { label, helper, error, prefix, required, className, id, ...rest },
+  ref,
+) {
   const auto = useId()
   const inputId = id ?? auto
   const helperId = `${inputId}-helper`
@@ -46,6 +40,7 @@ export function TextField({
           </span>
         )}
         <input
+          ref={ref}
           id={inputId}
           required={required}
           aria-required={required || undefined}
@@ -72,4 +67,4 @@ export function TextField({
       )}
     </div>
   )
-}
+})

@@ -7,9 +7,12 @@ silently: without it the suite fails with an explanation.
 
 from __future__ import annotations
 
+import atexit
 import base64
 import os
 import secrets
+import shutil
+import tempfile
 import uuid
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime, timedelta
@@ -34,9 +37,15 @@ if not _TEST_DB:
         returncode=2,
     )
 
+_STORAGE_DIR = tempfile.mkdtemp(prefix="qr-test-")
+atexit.register(shutil.rmtree, _STORAGE_DIR, ignore_errors=True)
+
 # Must be set before any `app.*` import reads settings.
 os.environ.update(
     {
+        "STORAGE_BACKEND": "local",
+        "LOCAL_STORAGE_DIR": _STORAGE_DIR,
+        "REAUTH_MAX_AGE_SECONDS": "300",
         "APP_ENV": "test",
         "DATABASE_URL": _TEST_DB,
         "SUPABASE_JWT_SECRET": JWT_SECRET,
@@ -206,6 +215,7 @@ def make_jwt(
     audience: str = "authenticated",
     expires_in: timedelta = timedelta(hours=1),
     extra: dict[str, Any] | None = None,
+    password_auth_age: timedelta | None = None,
 ) -> str:
     claims: dict[str, Any] = {
         "sub": str(sub),
@@ -214,8 +224,31 @@ def make_jwt(
         "email": "user@example.test",
         **(extra or {}),
     }
+    if password_auth_age is not None:
+        # Supabase stamps the sign-in time of each method into the `amr` claim.
+        stamp = int((datetime.now(UTC) - password_auth_age).timestamp())
+        claims["amr"] = [{"method": "password", "timestamp": stamp}]
     return jwt.encode(claims, secret, algorithm=algorithm)
 
 
 def bearer(sub: uuid.UUID, **kwargs: Any) -> dict[str, str]:
     return {"Authorization": f"Bearer {make_jwt(sub, **kwargs)}"}
+
+
+FRESH = timedelta(seconds=5)
+STALE = timedelta(minutes=30)
+
+
+def fresh_auth(sub: uuid.UUID) -> dict[str, str]:
+    """A token from a password sign-in a few seconds ago (passes the re-auth gate)."""
+    return bearer(sub, password_auth_age=FRESH)
+
+
+def stale_auth(sub: uuid.UUID) -> dict[str, str]:
+    """A valid session whose last password sign-in was long ago (must re-authenticate)."""
+    return bearer(sub, password_auth_age=STALE)
+
+
+@pytest.fixture
+def storage_dir() -> Path:
+    return Path(_STORAGE_DIR)

@@ -2,8 +2,9 @@
 
 Upload a spreadsheet/PDF/Word file of amounts you are owed → review the extracted records → confirm import →
 send customers a secure payment-instructions link → record payments.
-**Status: Phase 0 (foundation).** The app shell, API, database schema, auth wiring and CI exist; the product
-features arrive in later phases (see `docs/stage-3-implementation.md`).
+**Status: Phase 1 (Authentication & Settings) implemented.** Employers can sign in, reset a password, and manage
+Payment details (UPI / QR / bank, with re-authentication, preview and audit). Imports, collections, payment
+requests and payments arrive in later phases (see `docs/stage-3-implementation.md`).
 
 Authoritative design docs: `docs/stage-1-system-design.md`, `docs/stage-2-ui-ux.md`, `docs/adr/`. Rules for contributors/agents: `CLAUDE.md`.
 
@@ -46,16 +47,28 @@ Optional worker (heartbeat only in Phase 0): `(cd apps/api && uv run python -m a
 
 Shortcuts: `make install db-up migrate api web worker`.
 
-### Authentication (foundation)
-The API verifies Supabase JWTs (`SUPABASE_JWKS_URL` or `SUPABASE_JWT_SECRET`) and derives the employer from the
-token's `sub` via the `employers.auth_user_id` link. There is **no login screen yet** (Phase 1). To exercise it by hand:
+### Authentication, provisioning and settings (Phase 1)
+Login/reset use **Supabase Auth** from the browser (public anon key only); every data call goes to our API with the
+user's access token. There is **no signup**: an operator creates each employer with the provisioning command, which
+needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `apps/api/.env` (backend/operator machine only):
 
 ```bash
-psql postgresql://postgres:postgres@localhost:5432/postgres -c \
- "insert into employers (auth_user_id,name,email) values ('11111111-1111-1111-1111-111111111111','Demo','demo@example.test')"
-TOKEN=$(cd apps/api && uv run python -c "import jwt,time;print(jwt.encode({'sub':'11111111-1111-1111-1111-111111111111','aud':'authenticated','exp':int(time.time())+3600},'<SUPABASE_JWT_SECRET>',algorithm='HS256'))")
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/v1/me
+cd apps/api
+uv run python -m app.provisioning create --name "Acme Traders" --email owner@acme.example   # prompts for the password
+uv run python -m app.provisioning create --name "Acme Traders" --email owner@acme.example \
+    --auth-user-id <existing Supabase auth user id>                                      # link instead of create
 ```
+It refuses duplicates, requires a 12+ character password, never prints the password, and removes a freshly created
+Supabase user if the database step fails. For local development without Supabase, link an existing/test auth user with
+`--auth-user-id` and sign API calls with a locally minted JWT (see `apps/api/tests/conftest.py::make_jwt`).
+
+Configure the web app with `apps/web/.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`,
+`VITE_PUBLIC_APP_URL`). Without them the app shows "Sign-in isn't configured" instead of redirecting in a loop.
+
+QR images are stored in a **private** bucket (`QR_BUCKET`, default `qr`) via `STORAGE_BACKEND=supabase`; the default
+`local` backend writes to `.local-storage/` for development only and is rejected in staging/production.
+
+Verification notes: ADR 0004 (re-authentication) and ADR 0005 (password reset: PKCE vs hash router) in `docs/adr/`.
 
 ## Tests and checks
 ```bash

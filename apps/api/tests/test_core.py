@@ -130,5 +130,14 @@ def test_migration_roundtrip_on_a_fresh_database(admin_engine: object) -> None:
 def test_env_example_contains_no_real_secrets() -> None:
     text_ = (Path(__file__).resolve().parent.parent / ".env.example").read_text()
     for line in text_.splitlines():
-        if line.startswith(("TOKEN_ENC_KEY=", "TOKEN_HMAC_SECRET=", "ANTHROPIC_API_KEY=")):
-            assert line.split("=", 1)[1] == ""  # must be blank placeholders
+        if line.startswith(
+            (
+                "TOKEN_ENC_KEY=",
+                "TOKEN_HMAC_SECRET=",
+                "ANTHROPIC_API_KEY=",
+                "SUPABASE_SERVICE_ROLE_KEY=",
+                "SUPABASE_JWT_SECRET=",
+            )
+        ):
+            value = line.split("=", 1)[1].split("#", 1)[0].strip()  # ignore inline comments
+            assert value == ""  # must be blank placeholders

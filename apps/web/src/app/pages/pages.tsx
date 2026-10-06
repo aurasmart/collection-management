@@ -10,4 +10,3 @@ export function DashboardPage() {
 }
 export const CollectionsPage = () => <PlaceholderPage title="Collections" phase="Phase 3" />
 export const UploadPage = () => <PlaceholderPage title="Upload" phase="Phase 2" />
-export const SettingsPage = () => <PlaceholderPage title="Settings" phase="Phase 1" />

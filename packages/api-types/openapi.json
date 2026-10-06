@@ -1,6 +1,20 @@
 {
   "components": {
     "schemas": {
+      "Body_uploadPaymentQr": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_uploadPaymentQr",
+        "type": "object"
+      },
       "EmployerOut": {
         "properties": {
           "email": {
@@ -23,6 +37,19 @@
           "email"
         ],
         "title": "EmployerOut",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
         "type": "object"
       },
       "HealthResponse": {
@@ -48,6 +75,313 @@
           "employer"
         ],
         "title": "MeResponse",
+        "type": "object"
+      },
+      "PaymentSettingsIn": {
+        "additionalProperties": false,
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "account_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Number"
+          },
+          "bank_enabled": {
+            "default": false,
+            "title": "Bank Enabled",
+            "type": "boolean"
+          },
+          "bank_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Name"
+          },
+          "display_name": {
+            "maxLength": 60,
+            "minLength": 2,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "ifsc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ifsc"
+          },
+          "qr_enabled": {
+            "default": false,
+            "title": "Qr Enabled",
+            "type": "boolean"
+          },
+          "upi_enabled": {
+            "default": false,
+            "title": "Upi Enabled",
+            "type": "boolean"
+          },
+          "upi_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upi Id"
+          },
+          "upi_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upi Number"
+          },
+          "upi_number_enabled": {
+            "default": false,
+            "title": "Upi Number Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "PaymentSettingsIn",
+        "type": "object"
+      },
+      "PaymentSettingsOut": {
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "account_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Number"
+          },
+          "bank_enabled": {
+            "title": "Bank Enabled",
+            "type": "boolean"
+          },
+          "bank_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Name"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "has_qr": {
+            "title": "Has Qr",
+            "type": "boolean"
+          },
+          "ifsc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ifsc"
+          },
+          "qr_enabled": {
+            "title": "Qr Enabled",
+            "type": "boolean"
+          },
+          "recent_changes": {
+            "items": {
+              "$ref": "#/components/schemas/SettingChange"
+            },
+            "title": "Recent Changes",
+            "type": "array"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "upi_enabled": {
+            "title": "Upi Enabled",
+            "type": "boolean"
+          },
+          "upi_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upi Id"
+          },
+          "upi_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upi Number"
+          },
+          "upi_number_enabled": {
+            "title": "Upi Number Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "display_name",
+          "upi_id",
+          "upi_number",
+          "bank_name",
+          "account_name",
+          "account_number",
+          "ifsc",
+          "upi_enabled",
+          "upi_number_enabled",
+          "qr_enabled",
+          "bank_enabled",
+          "has_qr",
+          "updated_at",
+          "recent_changes"
+        ],
+        "title": "PaymentSettingsOut",
+        "type": "object"
+      },
+      "SettingChange": {
+        "properties": {
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "actor",
+          "fields"
+        ],
+        "title": "SettingChange",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
         "type": "object"
       }
     },
@@ -87,6 +421,178 @@
         "summary": "Current employer (derived from the verified session)",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/settings/payment": {
+      "get": {
+        "operationId": "getPaymentSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Payment settings (own employer only)",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "updatePaymentSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PaymentSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Recent password confirmation required (reauth_required)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save payment settings (payment details need a recent password confirmation)",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/payment/qr": {
+      "delete": {
+        "operationId": "deletePaymentQr",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Recent password confirmation required (reauth_required)"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remove the QR image (turn the QR method off first)",
+        "tags": [
+          "settings"
+        ]
+      },
+      "get": {
+        "operationId": "getPaymentQr",
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No QR image"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "The employer's own QR image (authenticated; never public)",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "uploadPaymentQr",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadPaymentQr"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Recent password confirmation required (reauth_required)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload or replace the QR image (PNG/JPG, max 2 MB, at least 300\u00d7300)",
+        "tags": [
+          "settings"
         ]
       }
     },

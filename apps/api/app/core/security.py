@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Annotated, Any
 
@@ -26,6 +27,8 @@ _SYMMETRIC_ALGS = ["HS256"]
 class AuthenticatedUser:
     auth_user_id: uuid.UUID
     email: str | None
+    # Time of the most recent password authentication for this session (from the `amr` claim).
+    last_password_auth_at: datetime | None = None
 
 
 def _unauthorized(detail: str = "Not authenticated") -> HTTPException:
@@ -66,4 +69,25 @@ def require_user(
     except (jwt.PyJWTError, ValueError, KeyError) as exc:
         raise _unauthorized("Invalid or expired session") from exc
     email = claims.get("email")
-    return AuthenticatedUser(auth_user_id=user_id, email=email if isinstance(email, str) else None)
+    return AuthenticatedUser(
+        auth_user_id=user_id,
+        email=email if isinstance(email, str) else None,
+        last_password_auth_at=_last_password_auth(claims),
+    )
+
+
+def _last_password_auth(claims: dict[str, Any]) -> datetime | None:
+    """Latest `amr` entry with method=password (Supabase puts the sign-in time in `timestamp`)."""
+    latest: int | None = None
+    amr = claims.get("amr")
+    if isinstance(amr, list):
+        for entry in amr:
+            if isinstance(entry, dict) and entry.get("method") == "password":
+                ts = entry.get("timestamp")
+                if (
+                    isinstance(ts, int)
+                    and not isinstance(ts, bool)
+                    and (latest is None or ts > latest)
+                ):
+                    latest = ts
+    return datetime.fromtimestamp(latest, UTC) if latest is not None else None

@@ -23,6 +23,19 @@ The `CI` workflow also runs gitleaks; locally: `pre-commit install` (uses `.pre-
 - Run migrations with the same DB user the API uses: `alembic upgrade head` (Render runs it as `preDeployCommand`).
   The migration creates the `app_rls` role and grants it to the migrating user.
 
+### Phase 1 Supabase settings (required)
+- **Authentication → URL configuration:** *Site URL* = the app URL; *Redirect URLs* must include exactly the reset target,
+  e.g. `https://app.example.com/#/reset-password` (and `http://localhost:5173/#/reset-password` for local dev).
+- **Authentication → Providers → Email:** disable sign-ups ("Allow new users to sign up" off); set minimum password length to 12
+  (the app enforces 12 on the reset form and in provisioning).
+- **Storage:** create a **private** bucket named `qr` (no public access, no public policies). The API accesses it with the
+  service-role key; browsers never receive storage URLs.
+- **Backend env on Render:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (backend only), `STORAGE_BACKEND=supabase`,
+  `SUPABASE_JWKS_URL` (or `SUPABASE_JWT_SECRET`), `JWT_ISSUER`, `REAUTH_MAX_AGE_SECONDS` (default 300).
+- **Provisioning an employer:** run `uv run python -m app.provisioning create …` from `apps/api` with the same env.
+- Password-reset links must be opened in the **same browser** that requested them (PKCE verifier lives in that browser's storage);
+  opening one elsewhere consumes it and a new link is needed.
+
 ## Render (backend + worker)
 - New → Blueprint → select `infra/render.yaml`. Fill every `sync: false` variable in the dashboard
   (`DATABASE_URL`, `CORS_ORIGINS` = exactly the Pages origin, JWT settings, `TOKEN_ENC_KEY`, `TOKEN_HMAC_SECRET`, …).
@@ -33,4 +46,4 @@ The `CI` workflow also runs gitleaks; locally: `pre-commit install` (uses `.pre-
 `TOKEN_ENC_KEY_ID` labels the active key. Rotation procedure is implemented with the payment-request phase (Phase 4).
 
 ## Not yet implemented (by design in Phase 0)
-Employer provisioning script (Phase 1), import pipeline (Phase 2), payment requests/public page (Phase 4), retention job (Phase 7).
+Import pipeline (Phase 2), payment requests/public page (Phase 4), retention job (Phase 7).

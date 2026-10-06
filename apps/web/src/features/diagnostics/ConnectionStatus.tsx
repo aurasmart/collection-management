@@ -7,8 +7,9 @@ import { env } from '@/lib/env'
 const AUTH_TEXT = {
   loading: 'Checking…',
   unconfigured: 'Not configured (set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY)',
-  'signed-out': 'Not signed in (login arrives in Phase 1)',
+  'signed-out': 'Not signed in',
   'signed-in': 'Signed in',
+  expired: 'Session expired',
 } as const
 
 /** Phase 0 diagnostics: proves frontend -> backend connectivity and auth wiring. Removed/replaced later. */

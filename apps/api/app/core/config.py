@@ -31,6 +31,18 @@ class Settings(BaseSettings):
     jwt_audience: str = "authenticated"
     jwt_issuer: str | None = None
 
+    # Supabase project (backend-only). The service-role key must never reach the browser.
+    supabase_url: str | None = None
+    supabase_service_role_key: str | None = None
+
+    # Re-authentication window for sensitive changes (see docs/adr/0004-reauthentication.md).
+    reauth_max_age_seconds: int = 300
+
+    # Private object storage for QR images. "local" is for development/tests only.
+    storage_backend: Literal["local", "supabase"] = "local"
+    local_storage_dir: str = ".local-storage"
+    qr_bucket: str = "qr"
+
     # Payment-token crypto (docs/adr/0001). Backend-only.
     token_enc_key: str  # base64, 32 bytes (AES-256-GCM)
     token_enc_key_id: str = "k1"  # noqa: S105 (key label, not a secret)
@@ -80,6 +92,12 @@ class Settings(BaseSettings):
             self.supabase_jwks_url or self.supabase_jwt_secret
         ):
             raise ValueError("Set SUPABASE_JWKS_URL or SUPABASE_JWT_SECRET")
+        if self.app_env in ("staging", "production") and self.storage_backend != "supabase":
+            raise ValueError("STORAGE_BACKEND must be 'supabase' in staging/production")
+        if self.storage_backend == "supabase" and not (
+            self.supabase_url and self.supabase_service_role_key
+        ):
+            raise ValueError("STORAGE_BACKEND=supabase requires SUPABASE_URL and the service key")
         if self.ai_enabled and (not self.anthropic_api_key or self.ai_monthly_cost_cap_usd <= 0):
             raise ValueError(
                 "AI_ENABLED requires ANTHROPIC_API_KEY and AI_MONTHLY_COST_CAP_USD > 0"

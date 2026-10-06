@@ -21,6 +21,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Payment settings (own employer only) */
+        get: operations["getPaymentSettings"];
+        /** Save payment settings (payment details need a recent password confirmation) */
+        put: operations["updatePaymentSettings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/payment/qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The employer's own QR image (authenticated; never public) */
+        get: operations["getPaymentQr"];
+        /** Upload or replace the QR image (PNG/JPG, max 2 MB, at least 300×300) */
+        put: operations["uploadPaymentQr"];
+        post?: never;
+        /** Remove the QR image (turn the QR method off first) */
+        delete: operations["deletePaymentQr"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -59,6 +96,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_uploadPaymentQr */
+        Body_uploadPaymentQr: {
+            /** File */
+            file: string;
+        };
         /** EmployerOut */
         EmployerOut: {
             /** Email */
@@ -71,6 +113,11 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
+        };
         /** HealthResponse */
         HealthResponse: {
             /** Status */
@@ -79,6 +126,99 @@ export interface components {
         /** MeResponse */
         MeResponse: {
             employer: components["schemas"]["EmployerOut"];
+        };
+        /** PaymentSettingsIn */
+        PaymentSettingsIn: {
+            /** Account Name */
+            account_name?: string | null;
+            /** Account Number */
+            account_number?: string | null;
+            /**
+             * Bank Enabled
+             * @default false
+             */
+            bank_enabled: boolean;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Ifsc */
+            ifsc?: string | null;
+            /**
+             * Qr Enabled
+             * @default false
+             */
+            qr_enabled: boolean;
+            /**
+             * Upi Enabled
+             * @default false
+             */
+            upi_enabled: boolean;
+            /** Upi Id */
+            upi_id?: string | null;
+            /** Upi Number */
+            upi_number?: string | null;
+            /**
+             * Upi Number Enabled
+             * @default false
+             */
+            upi_number_enabled: boolean;
+        };
+        /** PaymentSettingsOut */
+        PaymentSettingsOut: {
+            /** Account Name */
+            account_name: string | null;
+            /** Account Number */
+            account_number: string | null;
+            /** Bank Enabled */
+            bank_enabled: boolean;
+            /** Bank Name */
+            bank_name: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Has Qr */
+            has_qr: boolean;
+            /** Ifsc */
+            ifsc: string | null;
+            /** Qr Enabled */
+            qr_enabled: boolean;
+            /** Recent Changes */
+            recent_changes: components["schemas"]["SettingChange"][];
+            /** Updated At */
+            updated_at: string | null;
+            /** Upi Enabled */
+            upi_enabled: boolean;
+            /** Upi Id */
+            upi_id: string | null;
+            /** Upi Number */
+            upi_number: string | null;
+            /** Upi Number Enabled */
+            upi_number_enabled: boolean;
+        };
+        /** SettingChange */
+        SettingChange: {
+            /** Actor */
+            actor: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Fields */
+            fields: string[];
+        };
+        /** ValidationError */
+        ValidationError: {
+            /** Context */
+            ctx?: Record<string, never>;
+            /** Input */
+            input?: unknown;
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
         };
     };
     responses: never;
@@ -106,6 +246,160 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
                 };
+            };
+        };
+    };
+    getPaymentSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsOut"];
+                };
+            };
+        };
+    };
+    updatePaymentSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsOut"];
+                };
+            };
+            /** @description Recent password confirmation required (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPaymentQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description No QR image */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    uploadPaymentQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadPaymentQr"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsOut"];
+                };
+            };
+            /** @description Recent password confirmation required (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deletePaymentQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentSettingsOut"];
+                };
+            };
+            /** @description Recent password confirmation required (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

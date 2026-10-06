@@ -4,11 +4,14 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.modules.health.router import router as health_router
 from app.modules.me.router import router as me_router
+from app.modules.settings.router import router as settings_router
+from app.storage.base import StorageError
 
 
 def create_app() -> FastAPI:
@@ -32,6 +35,10 @@ def create_app() -> FastAPI:
         max_age=600,
     )
 
+    @app.exception_handler(StorageError)
+    async def storage_error(_request: Request, _exc: StorageError) -> JSONResponse:
+        return JSONResponse(status_code=502, content={"detail": "File storage is unavailable"})
+
     @app.middleware("http")
     async def security_headers(
         request: Request, call_next: Callable[[Request], Awaitable[Response]]
@@ -45,6 +52,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(me_router)
+    app.include_router(settings_router)
     return app
 
 

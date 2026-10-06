@@ -12,12 +12,14 @@ dependencies = [
     "alembic>=1.14",
     "pyjwt[crypto]>=2.10",
     "cryptography>=43,<49",
+    "pillow>=12.3.0",
+    "python-multipart>=0.0.32",
+    "httpx>=0.28.1",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3",
-    "httpx>=0.28",
     "ruff>=0.8",
     "mypy>=1.13",
 ]

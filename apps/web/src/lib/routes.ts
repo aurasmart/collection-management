@@ -9,6 +9,9 @@ export const routes = {
   collection: (id: string) => `/collections/${id}`,
   upload: '/upload',
   settings: '/settings',
+  login: '/login',
+  forgotPassword: '/forgot-password',
+  resetPassword: '/reset-password',
   pay: (token: string) => `/pay/${token}`,
 } as const
 

@@ -15,6 +15,7 @@ export function Modal({
   children,
   footer,
   initialFocusRef,
+  dismissible = true,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -23,12 +24,17 @@ export function Modal({
   children?: ReactNode
   footer?: ReactNode
   initialFocusRef?: RefObject<HTMLElement | null>
+  /** false = no close button, Esc or outside-click dismissal (e.g. session expired). */
+  dismissible?: boolean
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/40" />
         <Dialog.Content
+          onEscapeKeyDown={dismissible ? undefined : (e) => e.preventDefault()}
+          onPointerDownOutside={dismissible ? undefined : (e) => e.preventDefault()}
+          onInteractOutside={dismissible ? undefined : (e) => e.preventDefault()}
           onOpenAutoFocus={(e) => {
             if (initialFocusRef?.current) {
               e.preventDefault()
@@ -46,12 +52,14 @@ export function Modal({
               <Dialog.Title className="text-xl font-semibold">{title}</Dialog.Title>
               <Dialog.Description className="mt-1 text-ink-2">{description}</Dialog.Description>
             </div>
-            <Dialog.Close
-              aria-label="Close"
-              className="grid size-11 shrink-0 place-items-center rounded-control hover:bg-neutral-soft"
-            >
-              <X className="size-5" aria-hidden="true" />
-            </Dialog.Close>
+            {dismissible && (
+              <Dialog.Close
+                aria-label="Close"
+                className="grid size-11 shrink-0 place-items-center rounded-control hover:bg-neutral-soft"
+              >
+                <X className="size-5" aria-hidden="true" />
+              </Dialog.Close>
+            )}
           </header>
           {children && <div className="flex-1 overflow-y-auto p-4">{children}</div>}
           {footer && (

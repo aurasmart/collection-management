@@ -14,7 +14,8 @@ If a requirement conflicts with these, **STOP and report it**. Never make an ind
 architecture, data-model, security, payment-request, token or user-flow decision.
 
 ## Status
-Phase 0 (Foundations) only. Do **not** start Phase 1+ until the owner approves. Phases: 0 Foundations →
+Phase 0 (Foundations) is committed (baseline `33226ac`). Phase 1 (Authentication & Settings) is implemented and awaiting owner
+review. Do **not** start Phase 2+ until the owner approves. Phases: 0 Foundations →
 1 Auth & Settings → 2 Import pipeline (Excel/CSV) → 3 Collections & Dashboard → 4 Payment requests & public page →
 5 Payments & History → 6 Word/PDF/OCR/AI → 7 Hardening.
 
@@ -44,8 +45,10 @@ partial payment: existing request stays an immutable snapshot; employer explicit
 4. Payment token model (ADR 0001): CSPRNG token → HMAC **lookup hash** + AES-GCM **encrypted token** (employer-side
    retrieval only) → ciphertext **erased** on revoke/regenerate/cancel. Token/ciphertext never appear in list/detail/
    dashboard responses, logs or audit events. Snapshot columns are immutable (DB trigger).
-5. Never trust the browser: validate server-side; OCR rows can never be imported without explicit human acceptance (DB + API).
-6. No tokens, JWTs or PII in logs (`app/core/logging.py` redacts defensively; do not rely on it).
+5. Sensitive payment-setting changes require a recent password sign-in (`amr` timestamp, ADR 0004); the server decides what is sensitive.
+   Audit events store field NAMES only. Employers are provisioned by `python -m app.provisioning` (no signup UI).
+6. Never trust the browser: validate server-side; OCR rows can never be imported without explicit human acceptance (DB + API).
+7. No tokens, JWTs or PII in logs (`app/core/logging.py` redacts defensively; do not rely on it).
 
 ## Conventions
 - Prefer simple, readable code over premature abstraction. No Redis/Celery/Kafka/microservices/k8s, no Redux/global store.
