@@ -1,0 +1,51 @@
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.modules.health.router import router as health_router
+from app.modules.me.router import router as me_router
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    configure_logging()
+
+    app = FastAPI(
+        title="Collections API",
+        version="0.1.0",
+        docs_url=None if settings.is_production else "/docs",
+        redoc_url=None,
+        openapi_url=None if settings.is_production else "/openapi.json",
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origin_list,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
+        allow_credentials=False,  # bearer tokens only; no cookies
+        max_age=600,
+    )
+
+    @app.middleware("http")
+    async def security_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Cache-Control", "no-store")
+        return response
+
+    app.include_router(health_router)
+    app.include_router(me_router)
+    return app
+
+
+app = create_app()

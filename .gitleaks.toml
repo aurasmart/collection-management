@@ -1,0 +1,13 @@
+# Secret scanning config (used by CI and the pre-commit hook).
+title = "collections gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documented, intentionally fake local-only values"
+paths = [
+  '''apps/api/\.env\.example''',   # template; every secret value is blank (a test enforces this)
+  '''infra/docker-compose\.yml''',   # throwaway local Postgres password
+  '''packages/api-types/schema\.d\.ts''',
+]

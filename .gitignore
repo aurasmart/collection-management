@@ -1,0 +1,31 @@
+# dependencies / build output
+node_modules/
+dist/
+dev-dist/
+coverage/
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.vite/
+
+# secrets & local config (NEVER commit). Only *.example files are tracked.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+service-account*.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# local assistant state
+.claude/settings.local.json

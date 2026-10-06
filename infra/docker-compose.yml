@@ -1,0 +1,48 @@
+# Local development stack.
+#   docker compose -f infra/docker-compose.yml up -d db        # Postgres only (normal dev loop)
+#   docker compose -f infra/docker-compose.yml --profile app up --build   # + API and worker containers
+# The credentials below are LOCAL-ONLY defaults for a throwaway database, not secrets.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  api:
+    profiles: ["app"]
+    build:
+      context: ../apps/api
+    env_file: ../apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  worker:
+    profiles: ["app"]
+    build:
+      context: ../apps/api
+    command: ["python", "-m", "app.worker"]
+    env_file: ../apps/api/.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  dbdata:

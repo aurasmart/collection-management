@@ -1,0 +1,74 @@
+# Render Blueprint (not applied automatically). Create from this file in the Render dashboard.
+# Secrets are declared with `sync: false`: Render asks for them; they are never stored in git.
+# NOTE: preDeployCommand and background workers require paid instance types on Render.
+services:
+  - type: web
+    name: collections-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    plan: starter
+    region: singapore
+    healthCheckPath: /healthz
+    autoDeployTrigger: "off"          # deployed by GitHub Actions via deploy hook
+    preDeployCommand: alembic upgrade head
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false                    # e.g. https://app.example.com
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        sync: false
+      - key: TOKEN_ENC_KEY
+        sync: false
+      - key: TOKEN_ENC_KEY_ID
+        value: k1
+      - key: TOKEN_HMAC_SECRET
+        sync: false
+      - key: AI_ENABLED
+        value: "false"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_MONTHLY_COST_CAP_USD
+        value: "0"
+
+  - type: worker
+    name: collections-worker
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    dockerCommand: python -m app.worker
+    plan: starter
+    region: singapore
+    autoDeployTrigger: "off"
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false                    # e.g. https://app.example.com
+      - key: SUPABASE_JWKS_URL
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        sync: false
+      - key: TOKEN_ENC_KEY
+        sync: false
+      - key: TOKEN_ENC_KEY_ID
+        value: k1
+      - key: TOKEN_HMAC_SECRET
+        sync: false
+      - key: AI_ENABLED
+        value: "false"
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_MONTHLY_COST_CAP_USD
+        value: "0"
