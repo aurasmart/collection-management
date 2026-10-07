@@ -12,6 +12,6 @@ export interface NavItem {
 export const NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', to: routes.dashboard, icon: LayoutDashboard, end: true },
   { label: 'Collections', to: routes.collections, icon: Receipt },
-  { label: 'Upload', to: routes.upload, icon: Upload },
+  { label: 'Import', to: routes.upload, icon: Upload },
   { label: 'Settings', to: routes.settings, icon: Settings },
 ]

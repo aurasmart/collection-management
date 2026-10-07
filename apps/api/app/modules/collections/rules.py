@@ -10,11 +10,27 @@ import re
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Literal
 
 MAX_AMOUNT = Decimal("9999999999.99")  # numeric(12,2)
 PHONE_RE = re.compile(r"^[6-9][0-9]{9}$")
-_DATE_FORMATS = ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%Y-%m-%d", "%d %b %Y", "%d %B %Y", "%d/%m/%y")
+_DAY_FIRST = ("%d/%m/%Y", "%d-%m-%Y", "%d.%m.%Y", "%d/%m/%y", "%d-%m-%y", "%d.%m.%y")
+_MONTH_FIRST = ("%m/%d/%Y", "%m-%d-%Y", "%m.%d.%Y", "%m/%d/%y", "%m-%d-%y", "%m.%d.%y")
+_UNAMBIGUOUS = (
+    "%Y-%m-%d",
+    "%Y/%m/%d",
+    "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%dT%H:%M:%S",
+    "%d %b %Y",
+    "%d %B %Y",
+    "%d-%b-%Y",
+    "%d-%b-%y",
+    "%d %b, %Y",
+    "%b %d, %Y",
+    "%B %d, %Y",
+    "%b %d %Y",
+)
+DateOrder = Literal["dmy", "mdy"]
 _EXCEL_EPOCH = date(1899, 12, 30)
 
 
@@ -36,13 +52,27 @@ def parse_name(v: Any) -> tuple[str, str | None]:
 
 
 def parse_phone(v: Any) -> tuple[str | None, str | None]:
-    """Blank is allowed (only WhatsApp/SMS need a phone). Otherwise +91 followed by 10 digits."""
+    """Blank is allowed (only WhatsApp/SMS need a phone).
+
+    Indian numbers are stored as +91XXXXXXXXXX; a number with another country code is kept
+    as typed (+<digits>) rather than destroyed.
+    """
     s = _text(v)
     if not s:
         return None, None
-    digits = re.sub(r"[\s\-()+.]", "", s)
+    compact = re.sub(r"[\s\-().]", "", s)
+    international = compact.startswith("+")
+    digits = compact.lstrip("+")
     if not digits.isdigit():
         return s, "Enter a 10-digit Indian mobile number"
+    if international:
+        if digits.startswith("91"):
+            if len(digits) == 12 and PHONE_RE.match(digits[2:]):
+                return f"+{digits}", None
+            return s, "Enter a 10-digit Indian mobile number"
+        if 8 <= len(digits) <= 15 and not digits.startswith("0"):
+            return f"+{digits}", None
+        return s, "Enter a valid phone number"
     if len(digits) == 12 and digits.startswith("91"):
         digits = digits[2:]
     elif len(digits) == 11 and digits.startswith("0"):
@@ -50,6 +80,21 @@ def parse_phone(v: Any) -> tuple[str | None, str | None]:
     if not PHONE_RE.match(digits):
         return s, "Enter a 10-digit Indian mobile number"
     return f"+91{digits}", None
+
+
+def parse_contact_phone(v: Any) -> tuple[str | None, str | None]:
+    """A business contact number: an Indian mobile, or any 8-15 digit number."""
+    s = _text(v)
+    if not s:
+        return None, None
+    value, error = parse_phone(s)
+    if not error:
+        return value, None
+    plus = s.strip().startswith("+")
+    digits = re.sub(r"[\s\-()+.]", "", s)
+    if digits.isdigit() and 8 <= len(digits) <= 15:
+        return (f"+{digits}" if plus else digits), None
+    return s, "Enter a valid phone number"
 
 
 def parse_amount(v: Any) -> tuple[str, str | None]:
@@ -83,8 +128,9 @@ def parse_reference(v: Any) -> tuple[str | None, str | None]:
     return s, None
 
 
-def parse_due_date(v: Any) -> tuple[str | None, str | None]:
-    """Blank allowed. Day-first formats; real Excel dates and Excel serial numbers also work."""
+def parse_due_date(v: Any, order: DateOrder = "dmy") -> tuple[str | None, str | None]:
+    """Blank allowed. Real Excel dates and serial numbers work; a slash date such as 03/04/2026 is
+    read day-first unless the file was confirmed to be month-first (the importer asks about it)."""
     if v is None or (isinstance(v, str) and not v.strip()):
         return None, None
     d: date | None = None
@@ -96,7 +142,8 @@ def parse_due_date(v: Any) -> tuple[str | None, str | None]:
         d = _EXCEL_EPOCH + timedelta(days=int(v))
     else:
         s = _text(v)
-        for fmt in _DATE_FORMATS:
+        formats = (*(_MONTH_FIRST if order == "mdy" else _DAY_FIRST), *_UNAMBIGUOUS)
+        for fmt in formats:
             try:
                 d = datetime.strptime(s, fmt).date()
                 break
@@ -117,12 +164,12 @@ class RowResult:
     errors: list[tuple[str, str]] = field(default_factory=list)
 
 
-def validate_row(raw: dict[str, Any]) -> RowResult:
+def validate_row(raw: dict[str, Any], order: DateOrder = "dmy") -> RowResult:
     name, e1 = parse_name(raw.get("customer_name"))
     phone, e2 = parse_phone(raw.get("phone"))
     amount, e3 = parse_amount(raw.get("amount_due"))
     ref, e4 = parse_reference(raw.get("reference"))
-    due, e5 = parse_due_date(raw.get("due_date"))
+    due, e5 = parse_due_date(raw.get("due_date"), order)
     errors = [
         (f, m)
         for f, m in (

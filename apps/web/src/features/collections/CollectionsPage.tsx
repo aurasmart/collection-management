@@ -53,7 +53,7 @@ export function CollectionsPage() {
           to={routes.upload}
           className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-medium text-white hover:bg-accent-hover"
         >
-          Upload customers
+          Import customers
         </Link>
       </div>
 
@@ -128,7 +128,7 @@ export function CollectionsPage() {
                   to={routes.upload}
                   className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-medium text-white"
                 >
-                  Upload Excel
+                  Import customers
                 </Link>
               }
             />

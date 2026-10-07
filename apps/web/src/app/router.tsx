@@ -1,4 +1,4 @@
-import { createHashRouter, type RouteObject } from 'react-router'
+import { createHashRouter, Navigate, type RouteObject } from 'react-router'
 import { AppShell } from '@/app/shell/AppShell'
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { LoginPage } from '@/features/auth/LoginPage'
@@ -10,7 +10,11 @@ import { CollectionsPage } from '@/features/collections/CollectionsPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { UploadPage } from '@/features/imports/UploadPage'
 import { PayPage } from '@/features/pay/PayPage'
-import { SettingsPage } from '@/features/settings/SettingsPage'
+import { AccountPage } from '@/features/settings/AccountPage'
+import { CompanyProfilePage } from '@/features/settings/CompanyProfilePage'
+import { PaymentDetailsPage } from '@/features/settings/PaymentDetailsPage'
+import { SecurityPage } from '@/features/settings/SecurityPage'
+import { SettingsLayout } from '@/features/settings/SettingsLayout'
 
 /** Hash routing for GitHub Pages (docs/adr/0002). Paths come from lib/routes.ts. */
 export const routeObjects: RouteObject[] = [
@@ -28,7 +32,17 @@ export const routeObjects: RouteObject[] = [
           { path: 'collections', element: <CollectionsPage /> },
           { path: 'collections/:id', element: <CollectionDetailPage /> },
           { path: 'upload', element: <UploadPage /> },
-          { path: 'settings', element: <SettingsPage /> },
+          {
+            path: 'settings',
+            element: <SettingsLayout />,
+            children: [
+              { index: true, element: <Navigate to="company" replace /> },
+              { path: 'company', element: <CompanyProfilePage /> },
+              { path: 'payment', element: <PaymentDetailsPage /> },
+              { path: 'account', element: <AccountPage /> },
+              { path: 'security', element: <SecurityPage /> },
+            ],
+          },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

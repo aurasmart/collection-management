@@ -7,7 +7,15 @@ import type { FormValues } from '@/features/settings/schema'
  * request, token or link exists here, nothing is sent and nothing is saved. Sample data is clearly labelled.
  * The same component will back the request preview in Phase 4.
  */
-export function PaymentPreview({ values, qrUrl }: { values: FormValues; qrUrl: string | null }) {
+export function PaymentPreview({
+  values,
+  qrUrl,
+  company,
+}: {
+  values: FormValues
+  qrUrl: string | null
+  company: { name: string; logoUrl: string | null }
+}) {
   const showUpi = values.upi_enabled && values.upi_id.trim() !== ''
   const showUpiNumber = values.upi_number_enabled && values.upi_number.trim() !== ''
   const showQr = values.qr_enabled && qrUrl !== null
@@ -17,7 +25,7 @@ export function PaymentPreview({ values, qrUrl }: { values: FormValues; qrUrl: s
     values.account_number.trim() !== '' &&
     values.ifsc.trim() !== ''
   const anything = showUpi || showUpiNumber || showQr || showBank
-  const name = values.display_name.trim() || 'Your business name'
+  const name = company.name.trim() || 'Your business name'
 
   return (
     <section aria-labelledby="preview-title" className="rounded-card border border-line bg-surface">
@@ -34,6 +42,13 @@ export function PaymentPreview({ values, qrUrl }: { values: FormValues; qrUrl: s
         className="mx-auto flex max-w-[480px] flex-col gap-3 bg-canvas p-4"
         data-testid="preview-body"
       >
+        {company.logoUrl && (
+          <img
+            src={company.logoUrl}
+            alt={`${name} logo`}
+            className="mx-auto h-14 max-w-full object-contain"
+          />
+        )}
         <p className="text-center font-semibold">{name}</p>
         <p className="text-center text-sm text-ink-2">Payment request</p>
         <div className="rounded-card border border-line bg-surface p-4 text-center">

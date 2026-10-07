@@ -38,6 +38,55 @@ function open(routes: Parameters<typeof mockApi>[0]) {
   return api
 }
 
+describe('company information on the customer page', () => {
+  const rich = {
+    ...full,
+    has_logo: true,
+    company_phone: '+919876543210',
+    company_email: 'accounts@acme.example',
+    company_address: '12 MG Road, Pune, Maharashtra 411001',
+    company_gstin: '27ABCDE1234F1Z5',
+  }
+
+  it('shows the logo and every contact detail the employer configured', async () => {
+    open({ [KEY]: () => json(rich) })
+    const logo = await screen.findByAltText('Acme Traders logo')
+    expect(logo.getAttribute('src')).toMatch(/\/api\/v1\/public\/pay\/FAKE-test-token-0001\/logo$/)
+    for (const t of [
+      '+919876543210',
+      'accounts@acme.example',
+      '12 MG Road, Pune, Maharashtra 411001',
+      '27ABCDE1234F1Z5',
+    ]) {
+      expect(screen.getByText(t)).toBeInTheDocument()
+    }
+  })
+
+  it('shows no empty sections when nothing is configured', async () => {
+    open({ [KEY]: () => json({ ...full, has_logo: false }) })
+    await screen.findByText('Acme Traders')
+    expect(screen.queryByAltText('Acme Traders logo')).not.toBeInTheDocument()
+    for (const label of ['Phone:', 'Email:', 'Address:', 'GSTIN:']) {
+      expect(screen.queryByText(label)).not.toBeInTheDocument()
+    }
+  })
+
+  it('keeps name and logo, but no contact details or instructions, once paid', async () => {
+    open({
+      [KEY]: () =>
+        json({
+          state: 'PAID',
+          company_name: 'Acme Traders',
+          customer_name: 'Rahul Sharma',
+          has_logo: true,
+        }),
+    })
+    expect(await screen.findByRole('heading', { name: 'Payment received' })).toBeInTheDocument()
+    expect(screen.getByAltText('Acme Traders logo')).toBeInTheDocument()
+    expect(screen.queryByText('Payment request')).not.toBeInTheDocument()
+  })
+})
+
 describe('customer payment page', () => {
   it('shows company, customer, amount, reference, UPI, QR, bank details and the plain message', async () => {
     const api = open({ [KEY]: () => json(full) })

@@ -107,6 +107,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/imports/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read a file or Google Sheet and suggest what each column means */
+        post: operations["analyzeImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/imports/confirm": {
         parameters: {
             query?: never;
@@ -124,6 +141,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/imports/google-sheets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether private Google Sheets can be imported, and who to share them with */
+        get: operations["getGoogleSheetsConfig"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/imports/preview": {
         parameters: {
             query?: never;
@@ -133,7 +167,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Read an .xlsx/.csv file and show the rows */
+        /** Apply the confirmed column mapping and show the normalised rows */
         post: operations["previewImport"];
         delete?: never;
         options?: never;
@@ -192,6 +226,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/public/pay/{token}/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The company logo shown on the payment page */
+        get: operations["getPublicCompanyLogo"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/public/pay/{token}/qr": {
         parameters: {
             query?: never;
@@ -204,6 +255,43 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/company": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Company profile (own employer only) */
+        get: operations["getCompanyProfile"];
+        /** Save the company profile (customer-visible changes need a recent password check) */
+        put: operations["updateCompanyProfile"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/settings/company/logo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The employer's own logo (authenticated; the public page has its own route) */
+        get: operations["getCompanyLogo"];
+        /** Upload or replace the logo (PNG/JPG/WebP, max 2 MB, at least 64×64) */
+        put: operations["uploadCompanyLogo"];
+        post?: never;
+        /** Remove the logo */
+        delete: operations["deleteCompanyLogo"];
         options?: never;
         head?: never;
         patch?: never;
@@ -284,6 +372,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnalysisOut */
+        AnalysisOut: {
+            /** Columns */
+            columns: components["schemas"]["ColumnOut"][];
+            /** Data Rows */
+            data_rows: number;
+            /** Fields */
+            fields: components["schemas"]["FieldStatusOut"][];
+            /** Filename */
+            filename: string;
+            /** Header Row */
+            header_row: number;
+            /** Notes */
+            notes: string[];
+            /** Ocr */
+            ocr: boolean;
+            /** Sheet */
+            sheet: number;
+            /** Sheets */
+            sheets: components["schemas"]["SheetOut"][];
+            /** Source */
+            source: string;
+        };
         /** BankDetails */
         BankDetails: {
             /** Account Name */
@@ -295,8 +406,38 @@ export interface components {
             /** Ifsc */
             ifsc: string | null;
         };
+        /** Body_analyzeImport */
+        Body_analyzeImport: {
+            /** File */
+            file?: string | null;
+            /** Header Row */
+            header_row?: number | null;
+            /** Sheet */
+            sheet?: number | null;
+            /** Sheet Url */
+            sheet_url?: string | null;
+        };
         /** Body_previewImport */
         Body_previewImport: {
+            /**
+             * Date Order
+             * @default dmy
+             * @enum {string}
+             */
+            date_order: "dmy" | "mdy";
+            /** File */
+            file?: string | null;
+            /** Header Row */
+            header_row?: number | null;
+            /** Mapping */
+            mapping?: string | null;
+            /** Sheet */
+            sheet?: number | null;
+            /** Sheet Url */
+            sheet_url?: string | null;
+        };
+        /** Body_uploadCompanyLogo */
+        Body_uploadCompanyLogo: {
             /** File */
             file: string;
         };
@@ -387,6 +528,99 @@ export interface components {
              */
             status: "PENDING" | "PAID";
         };
+        /** ColumnOut */
+        ColumnOut: {
+            /** Alternatives */
+            alternatives: string[];
+            /**
+             * Confidence
+             * @enum {string}
+             */
+            confidence: "high" | "uncertain" | "none";
+            date_info: components["schemas"]["DateInfoOut"] | null;
+            /** Header */
+            header: string;
+            /** Index */
+            index: number;
+            /** Samples */
+            samples: string[];
+            /** Suggested */
+            suggested: ("customer_name" | "phone" | "amount_due" | "reference" | "due_date") | null;
+        };
+        /** CompanyChange */
+        CompanyChange: {
+            /** Actor */
+            actor: string;
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Fields */
+            fields: string[];
+        };
+        /** CompanyProfileIn */
+        CompanyProfileIn: {
+            /** Address */
+            address?: string | null;
+            /** City */
+            city?: string | null;
+            /** Contact Person */
+            contact_person?: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email?: string | null;
+            /** Gstin */
+            gstin?: string | null;
+            /** Legal Name */
+            legal_name?: string | null;
+            /** Pan */
+            pan?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Pin */
+            pin?: string | null;
+            /** State */
+            state?: string | null;
+            /** Website */
+            website?: string | null;
+        };
+        /** CompanyProfileOut */
+        CompanyProfileOut: {
+            /** Address */
+            address: string | null;
+            /** City */
+            city: string | null;
+            /** Contact Person */
+            contact_person: string | null;
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string | null;
+            /** Gstin */
+            gstin: string | null;
+            /** Has Logo */
+            has_logo: boolean;
+            /** Legal Name */
+            legal_name: string | null;
+            /** Pan */
+            pan: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Pin */
+            pin: string | null;
+            /** Recent Changes */
+            recent_changes: components["schemas"]["CompanyChange"][];
+            /** Saved */
+            saved: boolean;
+            /** State */
+            state: string | null;
+            /** Updated At */
+            updated_at: string | null;
+            /** Website */
+            website: string | null;
+        };
         /** ConfirmIn */
         ConfirmIn: {
             /**
@@ -396,6 +630,8 @@ export interface components {
             filename: string;
             /** Rows */
             rows: components["schemas"]["RowIn"][];
+            /** Source */
+            source?: ("excel" | "csv" | "pdf" | "google_sheets") | null;
         };
         /** ConfirmOut */
         ConfirmOut: {
@@ -415,6 +651,18 @@ export interface components {
             /** Total Outstanding */
             total_outstanding: string;
         };
+        /** DateInfoOut */
+        DateInfoOut: {
+            /** Ambiguous */
+            ambiguous: boolean;
+            /** Examples */
+            examples: string[];
+            /**
+             * Order
+             * @enum {string}
+             */
+            order: "dmy" | "mdy";
+        };
         /** EmployerOut */
         EmployerOut: {
             /** Email */
@@ -433,6 +681,34 @@ export interface components {
             field: string;
             /** Message */
             message: string;
+        };
+        /** FieldStatusOut */
+        FieldStatusOut: {
+            /** Column */
+            column: number | null;
+            /** Competing */
+            competing: number[];
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "customer_name" | "phone" | "amount_due" | "reference" | "due_date";
+            /** Label */
+            label: string;
+            /** Required */
+            required: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "detected" | "uncertain" | "missing";
+        };
+        /** GoogleConfigOut */
+        GoogleConfigOut: {
+            /** Private Access */
+            private_access: boolean;
+            /** Service Account Email */
+            service_account_email: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -461,8 +737,6 @@ export interface components {
             bank_enabled: boolean;
             /** Bank Name */
             bank_name?: string | null;
-            /** Display Name */
-            display_name: string;
             /** Ifsc */
             ifsc?: string | null;
             /**
@@ -495,8 +769,6 @@ export interface components {
             bank_enabled: boolean;
             /** Bank Name */
             bank_name: string | null;
-            /** Display Name */
-            display_name: string | null;
             /** Has Qr */
             has_qr: boolean;
             /** Ifsc */
@@ -522,8 +794,16 @@ export interface components {
             filename: string;
             /** Invalid */
             invalid: number;
+            /** Notes */
+            notes: string[];
+            /** Ocr */
+            ocr: boolean;
             /** Rows */
             rows: components["schemas"]["RowOut"][];
+            /** Skipped */
+            skipped: components["schemas"]["SkippedOut"][];
+            /** Source */
+            source: string;
             /** Total */
             total: number;
             /** Valid */
@@ -534,10 +814,23 @@ export interface components {
             /** Amount Due */
             amount_due?: string | null;
             bank?: components["schemas"]["BankDetails"] | null;
+            /** Company Address */
+            company_address?: string | null;
+            /** Company Email */
+            company_email?: string | null;
+            /** Company Gstin */
+            company_gstin?: string | null;
             /** Company Name */
             company_name: string;
+            /** Company Phone */
+            company_phone?: string | null;
             /** Customer Name */
             customer_name: string;
+            /**
+             * Has Logo
+             * @default false
+             */
+            has_logo: boolean;
             /**
              * Has Qr
              * @default false
@@ -609,6 +902,11 @@ export interface components {
             reference: string | null;
             /** Row Number */
             row_number: number;
+            /**
+             * Warnings
+             * @default []
+             */
+            warnings: components["schemas"]["FieldError"][];
         };
         /** RowsIn */
         RowsIn: {
@@ -626,6 +924,22 @@ export interface components {
             at: string;
             /** Fields */
             fields: string[];
+        };
+        /** SheetOut */
+        SheetOut: {
+            /** Index */
+            index: number;
+            /** Name */
+            name: string;
+            /** Rows */
+            rows: number;
+        };
+        /** SkippedOut */
+        SkippedOut: {
+            /** Reason */
+            reason: string;
+            /** Row Number */
+            row_number: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -862,6 +1176,39 @@ export interface operations {
             };
         };
     };
+    analyzeImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_analyzeImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     confirmImport: {
         parameters: {
             query?: never;
@@ -893,6 +1240,26 @@ export interface operations {
             };
         };
     };
+    getGoogleSheetsConfig: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoogleConfigOut"];
+                };
+            };
+        };
+    };
     previewImport: {
         parameters: {
             query?: never;
@@ -900,7 +1267,7 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
                 "multipart/form-data": components["schemas"]["Body_previewImport"];
             };
@@ -1010,6 +1377,44 @@ export interface operations {
             };
         };
     };
+    getPublicCompanyLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description No logo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getPublicPaymentQr: {
         parameters: {
             query?: never;
@@ -1045,6 +1450,160 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    getCompanyProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileOut"];
+                };
+            };
+        };
+    };
+    updateCompanyProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyProfileIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileOut"];
+                };
+            };
+            /** @description Recent password confirmation required (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCompanyLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description No logo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    uploadCompanyLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadCompanyLogo"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileOut"];
+                };
+            };
+            /** @description Recent password confirmation required (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCompanyLogo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyProfileOut"];
+                };
+            };
+            /** @description Recent password confirmation required (reauth_required) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

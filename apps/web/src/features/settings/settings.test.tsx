@@ -16,10 +16,16 @@ vi.mock('@/lib/image', async (orig) => ({
 
 const ME = { employer: { id: 'e1', name: 'Acme Traders', email: 'owner@acme.test' } }
 const URL_ = '/api/v1/settings/payment'
+const COMPANY = {
+  display_name: 'Acme Traders',
+  has_logo: false,
+  saved: true,
+  updated_at: '2026-10-14T10:00:00Z',
+  recent_changes: [],
+}
 
 function settings(over: Record<string, unknown> = {}) {
   return {
-    display_name: 'Acme Traders',
     upi_id: null,
     upi_number: null,
     bank_name: null,
@@ -41,6 +47,7 @@ function setup(initial = settings(), extra: Parameters<typeof mockApi>[0] = {}) 
   const api = mockApi({
     'GET /healthz': () => json({ status: 'ok' }),
     'GET /api/v1/me': () => json(ME),
+    'GET /api/v1/settings/company': () => json(COMPANY),
     [`GET ${URL_}`]: () => json(initial),
     [`GET ${URL_}/qr`]: () =>
       new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'content-type': 'image/png' } }),
@@ -54,12 +61,17 @@ function setup(initial = settings(), extra: Parameters<typeof mockApi>[0] = {}) 
 async function open(initial = settings(), extra: Parameters<typeof mockApi>[0] = {}) {
   fake.setSession('owner@acme.test')
   const api = setup(initial, extra)
-  const view = renderApp('/settings')
+  const view = renderApp('/settings/payment')
   await screen.findByRole('form', { name: 'Payment details' })
   return { api, ...view }
 }
 
 const box = (name: string | RegExp) => screen.getByRole('textbox', { name })
+async function confirmPasswordDialog() {
+  const dialog = await screen.findByRole('dialog', { name: "Confirm it's you" })
+  await userEvent.type(within(dialog).getByLabelText(/^password/i), 'correct-horse-battery')
+  await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm and save' }))
+}
 const save = () => userEvent.click(screen.getByRole('button', { name: 'Save payment details' }))
 
 beforeEach(() => {
@@ -72,13 +84,13 @@ describe('loading / empty / error states', () => {
   it('shows a skeleton while loading, then the form', async () => {
     fake.setSession('owner@acme.test')
     setup()
-    renderApp('/settings')
+    renderApp('/settings/payment')
     expect(await screen.findByText('Loading payment settings…')).toBeInTheDocument()
     expect(await screen.findByRole('form', { name: 'Payment details' })).toBeInTheDocument()
   })
 
   it('first-time employers see the setup prompt', async () => {
-    await open(settings({ display_name: null, updated_at: null }))
+    await open(settings({ updated_at: null }))
     expect(
       screen.getByText('Add your payment details so customers know how to pay.'),
     ).toBeInTheDocument()
@@ -96,7 +108,7 @@ describe('loading / empty / error states', () => {
     setup(settings(), {
       [`GET ${URL_}`]: () => (fail ? json({ detail: 'boom' }, 500) : json(settings())),
     })
-    renderApp('/settings')
+    renderApp('/settings/payment')
     expect(await screen.findByText("Couldn't load payment settings")).toBeInTheDocument()
     fail = false
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -108,7 +120,7 @@ describe('loading / empty / error states', () => {
       settings({
         recent_changes: [
           { at: '2026-10-14T10:42:00Z', actor: 'owner@acme.test', fields: ['upi_id', 'qr_code'] },
-          { at: '2026-10-13T08:00:00Z', actor: 'other@acme.test', fields: ['display_name'] },
+          { at: '2026-10-13T08:00:00Z', actor: 'other@acme.test', fields: ['bank_name'] },
         ],
       }),
     )
@@ -154,28 +166,9 @@ describe('client-side validation', () => {
     await save()
     expect(await screen.findByText('Account numbers do not match')).toBeInTheDocument()
   })
-
-  it('the display name is required', async () => {
-    await open()
-    await userEvent.clear(box(/^Employer display name/))
-    await save()
-    expect(await screen.findByText('Enter at least 2 characters')).toBeInTheDocument()
-  })
 })
 
 describe('saving: re-authentication for sensitive changes', () => {
-  it('a display-name-only change saves without asking for a password', async () => {
-    const { api } = await open()
-    const name = box(/^Employer display name/)
-    await userEvent.clear(name)
-    await userEvent.type(name, 'Acme Wholesale')
-    await save()
-    expect(await screen.findByText('Payment details saved')).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(fake.auth.signInWithPassword).not.toHaveBeenCalled()
-    expect(api.called(`PUT ${URL_}`)).toHaveLength(1)
-  })
-
   it('a payment-detail change asks for the password first; nothing is sent until it is confirmed', async () => {
     const { api } = await open()
     await userEvent.type(box('UPI ID'), 'acme@okaxis')
@@ -276,27 +269,32 @@ describe('saving: server responses', () => {
 
   it('shows a calm error and keeps the form when saving fails', async () => {
     await open(settings(), { [`PUT ${URL_}`]: () => json({ detail: 'boom' }, 500) })
-    const name = box(/^Employer display name/)
-    await userEvent.clear(name)
-    await userEvent.type(name, 'Changed Name')
+    await userEvent.type(box('UPI number'), '9876543210')
     await save()
+    await confirmPasswordDialog()
     expect(
       await screen.findByText("Couldn't save. Your previous details are unchanged."),
     ).toBeInTheDocument()
-    expect(name).toHaveValue('Changed Name')
+    expect(box('UPI number')).toHaveValue('9876543210')
   })
 
   it('never sends an employer id, in the body or the URL', async () => {
     const { api } = await open()
-    const name = box(/^Employer display name/)
-    await userEvent.clear(name)
-    await userEvent.type(name, 'Another Name')
+    await userEvent.type(box('UPI number'), '9876543210')
     await save()
+    await confirmPasswordDialog()
     await screen.findByText('Payment details saved')
     for (const c of api.calls) {
       expect(JSON.stringify(c.body ?? '')).not.toMatch(/employer/i)
       expect(c.request.url).not.toMatch(/employer/i)
     }
+  })
+
+  it('no longer has a display name: that lives in the Company profile', async () => {
+    await open()
+    expect(screen.queryByRole('textbox', { name: /display name/i })).not.toBeInTheDocument()
+    const links = screen.getAllByRole('link', { name: 'Company profile' })
+    expect(links.some((l) => l.getAttribute('href') === '/settings/company')).toBe(true)
   })
 })
 
@@ -429,7 +427,7 @@ describe('unsaved changes', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Leave without saving?' })
     await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(router.state.location.pathname).toBe('/settings')
+    expect(router.state.location.pathname).toBe('/settings/payment')
     expect(box('UPI ID')).toHaveValue('acme@okaxis')
   })
 

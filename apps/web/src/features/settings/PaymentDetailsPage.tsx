@@ -3,17 +3,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
 import { Eye } from 'lucide-react'
 import { useForm, useWatch, type Resolver } from 'react-hook-form'
-import { useBlocker } from 'react-router'
-import {
-  Alert,
-  Button,
-  Card,
-  ConfirmDialog,
-  Modal,
-  Skeleton,
-  TextField,
-  useToast,
-} from '@/components/ui'
+import { Link } from 'react-router'
+import { Alert, Button, Modal, Skeleton, TextField, useToast } from '@/components/ui'
 import { PasswordConfirmModal } from '@/features/auth/PasswordConfirmModal'
 import { useAuth } from '@/features/auth/AuthProvider'
 import {
@@ -24,7 +15,10 @@ import {
   type PaymentSettings,
   type QrAction,
 } from '@/features/settings/api'
+import { useCompanyLogoUrl, useCompanyProfile } from '@/features/settings/companyApi'
 import { PaymentPreview } from '@/features/settings/PaymentPreview'
+import { RecentChanges, Section, UnsavedChangesDialog } from '@/features/settings/shared'
+import { useUnsavedGuard } from '@/features/settings/useUnsavedGuard'
 import { QrField } from '@/features/settings/QrField'
 import {
   FIELD_LABELS,
@@ -35,14 +29,14 @@ import {
   toPayload,
   type FormValues,
 } from '@/features/settings/schema'
-import { formatDateTime } from '@/lib/date'
+import { routes } from '@/lib/routes'
 import { stagedPreview } from '@/lib/image'
 
-export function SettingsPage() {
+export function PaymentDetailsPage() {
   const query = usePaymentSettings()
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Payment details</h1>
+      <h2 className="text-xl font-semibold">Payment details</h2>
       {query.isPending && <SettingsSkeleton />}
       {query.isError && (
         <Alert
@@ -114,6 +108,15 @@ function SettingsForm({ data }: { data: PaymentSettings }) {
   } = form
   const values = useWatch({ control }) as FormValues
 
+  const companyQuery = useCompanyProfile()
+  const companyLogo = useCompanyLogoUrl(
+    companyQuery.data?.has_logo ?? false,
+    companyQuery.data?.updated_at ?? null,
+  )
+  const company = {
+    name: companyQuery.data?.display_name ?? '',
+    logoUrl: companyLogo.data ?? null,
+  }
   const qrQuery = usePaymentQrUrl(data.has_qr, data.updated_at)
   const serverQrUrl = qrQuery.data ?? null
   const previewQr =
@@ -130,16 +133,7 @@ function SettingsForm({ data }: { data: PaymentSettings }) {
     if (submitCount > 0) void trigger('qr_enabled')
   }, [qrAction, submitCount, trigger])
 
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) =>
-      dirty && currentLocation.pathname !== nextLocation.pathname,
-  )
-  useEffect(() => {
-    if (!dirty) return
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [dirty])
+  const blocker = useUnsavedGuard(dirty)
 
   async function doSave(v: FormValues) {
     setSaving(true)
@@ -184,14 +178,18 @@ function SettingsForm({ data }: { data: PaymentSettings }) {
     else void doSave(v)
   }
 
-  const configured = data.display_name !== null || ENABLED_KEYS.some((k) => data[k])
+  const configured = data.updated_at !== null
   const noneEnabled = !ENABLED_KEYS.some((k) => data[k])
 
   return (
     <>
       <Alert tone="info">
-        These details appear on <strong>new</strong> payment requests. Existing requests keep the
-        details they were created with.
+        These are the payment methods customers see on their payment page. Your company name and
+        logo come from your{' '}
+        <Link className="underline" to={routes.settingsCompany}>
+          Company profile
+        </Link>
+        .
       </Alert>
       {!configured && (
         <Alert tone="info" title="Add your payment details so customers know how to pay." />
@@ -212,17 +210,6 @@ function SettingsForm({ data }: { data: PaymentSettings }) {
           noValidate
           aria-label="Payment details"
         >
-          <Section title="Display name">
-            <TextField
-              label="Employer display name"
-              placeholder="Name customers will recognise"
-              helper="Shown at the top of every payment request."
-              required
-              error={errors.display_name?.message}
-              {...register('display_name')}
-            />
-          </Section>
-
           <Section
             title="UPI ID"
             toggle={toggle('upi_enabled', register, 'Show UPI ID to customers')}
@@ -341,12 +328,12 @@ function SettingsForm({ data }: { data: PaymentSettings }) {
 
         <aside className="hidden lg:block">
           <div className="sticky top-20">
-            <PaymentPreview values={values} qrUrl={previewQr} />
+            <PaymentPreview values={values} qrUrl={previewQr} company={company} />
           </div>
         </aside>
       </div>
 
-      <RecentChanges changes={data.recent_changes} myEmail={email} />
+      <RecentChanges changes={data.recent_changes} myEmail={email} labels={FIELD_LABELS} />
 
       <Modal
         open={previewOpen}
@@ -354,7 +341,7 @@ function SettingsForm({ data }: { data: PaymentSettings }) {
         title="Preview"
         description="How your payment details will look to customers."
       >
-        <PaymentPreview values={values} qrUrl={previewQr} />
+        <PaymentPreview values={values} qrUrl={previewQr} company={company} />
       </Modal>
 
       <PasswordConfirmModal
@@ -375,18 +362,7 @@ function SettingsForm({ data }: { data: PaymentSettings }) {
         }}
       />
 
-      <ConfirmDialog
-        open={blocker.state === 'blocked'}
-        onOpenChange={(o) => {
-          if (!o && blocker.state === 'blocked') blocker.reset()
-        }}
-        title="Leave without saving?"
-        description="You have unsaved changes to your payment details."
-        confirmLabel="Leave"
-        cancelLabel="Stay"
-        destructive
-        onConfirm={() => blocker.state === 'blocked' && blocker.proceed()}
-      />
+      <UnsavedChangesDialog blocker={blocker} what="payment details" />
     </>
   )
 }
@@ -405,58 +381,5 @@ function toggle(name: (typeof ENABLED_KEYS)[number], register: Register, label: 
       />
       <span>{label}</span>
     </label>
-  )
-}
-
-function Section({
-  title,
-  toggle,
-  children,
-}: {
-  title: string
-  toggle?: ReactNode
-  children: ReactNode
-}) {
-  return (
-    <Card aria-label={title} className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{title}</h2>
-        {toggle}
-      </div>
-      {children}
-    </Card>
-  )
-}
-
-function RecentChanges({
-  changes,
-  myEmail,
-}: {
-  changes: PaymentSettings['recent_changes']
-  myEmail: string | null
-}) {
-  return (
-    <Card aria-labelledby="recent-changes-title">
-      <h2 id="recent-changes-title" className="text-lg font-semibold">
-        Recent changes
-      </h2>
-      {changes.length === 0 ? (
-        <p className="mt-2 text-ink-2">No changes yet.</p>
-      ) : (
-        <ul className="mt-3 flex flex-col gap-3">
-          {changes.map((c) => (
-            <li
-              key={`${c.at}-${c.fields.join()}`}
-              className="flex flex-col gap-0.5 sm:flex-row sm:gap-4"
-            >
-              <span className="text-ink-2 sm:w-52">{formatDateTime(c.at)}</span>
-              <span className="sm:w-44">{c.actor === myEmail ? 'You' : c.actor}</span>
-              <span>{c.fields.map((f) => FIELD_LABELS[f] ?? f).join(', ')}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="mt-3 text-sm text-ink-2">Only field names are recorded, never the values.</p>
-    </Card>
   )
 }

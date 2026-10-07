@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.modules.collections.router import router as collections_router
+from app.modules.company.router import router as company_router
 from app.modules.dashboard.router import router as dashboard_router
 from app.modules.health.router import router as health_router
 from app.modules.imports.router import router as imports_router
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(me_router)
     app.include_router(settings_router)
+    app.include_router(company_router)
     app.include_router(imports_router)
     app.include_router(collections_router)
     app.include_router(dashboard_router)

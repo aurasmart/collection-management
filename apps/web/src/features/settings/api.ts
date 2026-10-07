@@ -37,8 +37,8 @@ export function usePaymentQrUrl(hasQr: boolean, version: string | null) {
   })
 }
 
-export type SaveResult =
-  | { ok: true; data: PaymentSettings }
+export type SaveResult<T = PaymentSettings> =
+  | { ok: true; data: T }
   | { ok: false; kind: 'validation'; errors: ApiFieldError[]; qrApplied: boolean }
   | { ok: false; kind: 'reauth'; qrApplied: boolean }
   | { ok: false; kind: 'failed'; qrApplied: boolean }
@@ -83,7 +83,11 @@ export async function savePaymentSettings(
   }
 }
 
-function classify(error: unknown, status: number, qrApplied: boolean): SaveResult | null {
+export function classify(
+  error: unknown,
+  status: number,
+  qrApplied: boolean,
+): Exclude<SaveResult<never>, { ok: true }> | null {
   if (!error) return null
   if (status === 403 && isReauthRequired(error)) return { ok: false, kind: 'reauth', qrApplied }
   if (status === 422) {

@@ -10,7 +10,6 @@ export const QR_MAX_BYTES = 2 * 1024 * 1024
 export const QR_MIN_SIDE = 300
 
 export const FIELD_LABELS: Record<string, string> = {
-  display_name: 'Display name',
   upi_id: 'UPI ID',
   upi_number: 'UPI number',
   bank_name: 'Bank name',
@@ -38,7 +37,6 @@ export const SENSITIVE_FIELDS = [
 ] as const
 
 export interface FormValues {
-  display_name: string
   upi_id: string
   upi_number: string
   bank_name: string
@@ -56,11 +54,6 @@ export interface FormValues {
 export function makeSettingsSchema(hasQr: boolean) {
   return z
     .object({
-      display_name: z
-        .string()
-        .trim()
-        .min(2, 'Enter at least 2 characters')
-        .max(60, 'Use at most 60 characters'),
       upi_id: z.string().trim(),
       upi_number: z.string().trim(),
       bank_name: z.string().trim(),
@@ -117,7 +110,6 @@ export function makeSettingsSchema(hasQr: boolean) {
 type Nullable = string | null | undefined
 
 export function toFormValues(d: {
-  display_name: Nullable
   upi_id: Nullable
   upi_number: Nullable
   bank_name: Nullable
@@ -130,7 +122,6 @@ export function toFormValues(d: {
   bank_enabled: boolean
 }): FormValues {
   return {
-    display_name: d.display_name ?? '',
     upi_id: d.upi_id ?? '',
     upi_number: d.upi_number ?? '',
     bank_name: d.bank_name ?? '',
@@ -149,7 +140,6 @@ const orNull = (s: string): string | null => (s.trim() === '' ? null : s.trim())
 
 export function toPayload(v: FormValues) {
   return {
-    display_name: v.display_name.trim(),
     upi_id: orNull(v.upi_id),
     upi_number: orNull(v.upi_number),
     bank_name: orNull(v.bank_name),

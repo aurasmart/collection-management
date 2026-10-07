@@ -123,7 +123,7 @@ describe('Collections list', () => {
   it('has friendly empty states', async () => {
     open('/collections', { 'GET /api/v1/collections': () => list([]) })
     expect(await screen.findByText('No collections yet')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Upload Excel' })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Import customers' }).length).toBe(2)
   })
 
   it('has an error state with Retry', async () => {

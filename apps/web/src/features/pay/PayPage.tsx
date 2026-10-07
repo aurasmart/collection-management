@@ -53,7 +53,7 @@ export function PayPage() {
       )}
       {query.data?.state === 'PAID' && (
         <>
-          <p className="text-center text-lg font-semibold">{query.data.company_name}</p>
+          <CompanyHeader page={query.data} token={token} />
           <div className="rounded-card border border-success bg-success-soft p-6 text-center">
             <Check className="mx-auto size-10 text-success" aria-hidden="true" />
             <h1 className="mt-2 text-2xl font-semibold">Payment received</h1>
@@ -106,10 +106,7 @@ function Instructions({ page, token }: { page: Page; token: string }) {
   const none = !hasUpi && !page.has_qr && !page.bank
   return (
     <>
-      <header className="text-center">
-        <p className="text-lg font-semibold">{page.company_name}</p>
-        <p className="text-sm text-ink-2">Payment request</p>
-      </header>
+      <CompanyHeader page={page} token={token} />
 
       <section
         aria-label="Amount"
@@ -174,6 +171,38 @@ function Instructions({ page, token }: { page: Page; token: string }) {
         company. This page does not process or collect payment.
       </p>
     </>
+  )
+}
+
+function CompanyHeader({ page, token }: { page: Page; token: string }) {
+  const contacts = [
+    page.company_phone && { label: 'Phone', value: page.company_phone },
+    page.company_email && { label: 'Email', value: page.company_email },
+    page.company_address && { label: 'Address', value: page.company_address },
+    page.company_gstin && { label: 'GSTIN', value: page.company_gstin },
+  ].filter((c): c is { label: string; value: string } => Boolean(c))
+  return (
+    <header className="flex flex-col items-center gap-1 text-center">
+      {page.has_logo && (
+        <img
+          src={`${env.apiUrl}/api/v1/public/pay/${encodeURIComponent(token)}/logo`}
+          alt={`${page.company_name} logo`}
+          className="mb-1 h-16 max-w-[12rem] object-contain"
+        />
+      )}
+      <p className="text-lg font-semibold">{page.company_name}</p>
+      {page.state === 'PENDING' && <p className="text-sm text-ink-2">Payment request</p>}
+      {contacts.length > 0 && (
+        <dl className="mt-1 flex flex-col gap-0.5 text-sm text-ink-2">
+          {contacts.map((c) => (
+            <div key={c.label} className="flex flex-wrap justify-center gap-x-1">
+              <dt>{c.label}:</dt>
+              <dd className="break-words text-ink">{c.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </header>
   )
 }
 

@@ -36,6 +36,12 @@ class PublicPage(BaseModel):
     state: Literal["PENDING", "PAID"]
     company_name: str
     customer_name: str
+    has_logo: bool = False
+    # Company contact details: only the ones the employer filled in.
+    company_phone: str | None = None
+    company_email: str | None = None
+    company_address: str | None = None
+    company_gstin: str | None = None
     # Everything below is only filled in while the customer still owes money.
     amount_due: str | None = None
     reference: str | None = None
@@ -72,7 +78,10 @@ def get_public_page(token: str, request: Request, response: Response) -> PublicP
     row = _lookup(token, request)
     if row.status == "PAID":
         return PublicPage(
-            state="PAID", company_name=row.company_name, customer_name=row.customer_name
+            state="PAID",
+            company_name=row.company_name,
+            customer_name=row.customer_name,
+            has_logo=bool(row.has_logo and row.logo_key),
         )
     bank = (
         BankDetails(
@@ -88,6 +97,11 @@ def get_public_page(token: str, request: Request, response: Response) -> PublicP
         state="PENDING",
         company_name=row.company_name,
         customer_name=row.customer_name,
+        has_logo=bool(row.has_logo and row.logo_key),
+        company_phone=row.company_phone,
+        company_email=row.company_email,
+        company_address=row.company_address,
+        company_gstin=row.company_gstin,
         amount_due=format(row.amount_due, "f"),
         reference=row.reference,
         upi_id=row.upi_id,
@@ -116,6 +130,34 @@ def get_public_qr(
     if not re.fullmatch(r"[0-9a-f-]{36}/qr/[0-9a-f-]{36}\.png", row.qr_key):
         raise _NOT_FOUND  # defence in depth: only our own key layout is ever read
     data = storage.get(app_settings.qr_bucket, row.qr_key)
+    if data is None:
+        raise _NOT_FOUND
+    return Response(
+        content=data,
+        media_type="image/png",
+        headers={**_NO_STORE, "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.get(
+    "/{token}/logo",
+    operation_id="getPublicCompanyLogo",
+    summary="The company logo shown on the payment page",
+    response_class=Response,
+    responses={200: {"content": {"image/png": {}}}, 404: {"description": "No logo"}},
+)
+def get_public_logo(
+    token: str,
+    request: Request,
+    storage: Annotated[StorageService, Depends(get_storage)],
+    app_settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    row = _lookup(token, request)
+    if not row.has_logo or not row.logo_key:
+        raise _NOT_FOUND
+    if not re.fullmatch(r"[0-9a-f-]{36}/logo/[0-9a-f-]{36}\.png", row.logo_key):
+        raise _NOT_FOUND  # defence in depth: only our own key layout is ever read
+    data = storage.get(app_settings.qr_bucket, row.logo_key)
     if data is None:
         raise _NOT_FOUND
     return Response(

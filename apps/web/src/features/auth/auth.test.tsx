@@ -185,7 +185,7 @@ describe('session expiry (Stage 2 S12)', () => {
     act(() => fake.emit('SIGNED_OUT', null))
     const dialog = await screen.findByRole('dialog', { name: 'Your session expired' })
     expect(within(dialog).getByText('owner@acme.test')).toBeInTheDocument()
-    expect(router.state.location.pathname).toBe('/settings') // same screen, content preserved
+    expect(router.state.location.pathname).toBe('/settings/company') // same screen, content preserved
     expect(within(dialog).queryByRole('button', { name: 'Close' })).not.toBeInTheDocument()
     await userEvent.keyboard('{Escape}')
     expect(screen.getByRole('dialog', { name: 'Your session expired' })).toBeInTheDocument()
@@ -213,7 +213,7 @@ describe('session expiry (Stage 2 S12)', () => {
     await userEvent.type(within(dialog).getByLabelText(/^password/i), 'correct-horse-battery')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Sign in again' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
-    expect(router.state.location.pathname).toBe('/settings')
+    expect(router.state.location.pathname).toBe('/settings/company')
     expect(fake.auth.signInWithPassword).toHaveBeenLastCalledWith({
       email: 'owner@acme.test',
       password: 'correct-horse-battery',
@@ -245,6 +245,6 @@ describe('session expiry (Stage 2 S12)', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Your session expired' })
     await userEvent.click(within(dialog).getByRole('button', { name: 'Sign out' }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
-    expect(new URLSearchParams(router.state.location.search).get('next')).toBe('/settings')
+    expect(new URLSearchParams(router.state.location.search).get('next')).toBe('/settings/company')
   })
 })

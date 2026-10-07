@@ -16,14 +16,12 @@ MakeTenant = Callable[[str], Tenant]
 URL = "/api/v1/settings/payment"
 
 UPI_BODY: dict[str, Any] = {
-    "display_name": "Acme Traders",
     "upi_id": "acme@okaxis",
     "upi_number": "9876543210",
     "upi_enabled": True,
     "upi_number_enabled": True,
 }
 BANK_BODY: dict[str, Any] = {
-    "display_name": "Acme Traders",
     "bank_name": "HDFC Bank",
     "account_name": "Acme Traders Pvt Ltd",
     "account_number": "50100234567890",
@@ -77,7 +75,6 @@ def test_empty_state_is_returned_for_a_new_employer(
     with admin_engine.connect() as c:
         c.execute(text("DELETE FROM payment_settings WHERE employer_id = :e"), {"e": a.employer_id})
     body = client.get(URL, headers=bearer(a.auth_user_id)).json()
-    assert body["display_name"] is None
     assert body["has_qr"] is False
     assert not any(
         body[k] for k in ("upi_enabled", "upi_number_enabled", "qr_enabled", "bank_enabled")
@@ -85,16 +82,13 @@ def test_empty_state_is_returned_for_a_new_employer(
     assert body["recent_changes"] == []
 
 
-def test_display_name_change_needs_no_reauthentication(
-    client: TestClient, make_tenant: MakeTenant, admin_engine: Engine
+def test_display_name_no_longer_lives_in_payment_settings(
+    client: TestClient, make_tenant: MakeTenant
 ) -> None:
     a = make_tenant("a")
-    r = client.put(URL, json={"display_name": "New Name"}, headers=bearer(a.auth_user_id))
-    assert r.status_code == 200, r.text
-    assert r.json()["display_name"] == "New Name"
-    rows = audit_rows(admin_engine, a.employer_id)
-    assert [json.loads(json.dumps(x.details)) for x in rows][-1]["fields"] == ["display_name"]
-    assert rows[-1].details["reauthenticated"] is False
+    r = client.put(URL, json={"display_name": "New Name"}, headers=fresh_auth(a.auth_user_id))
+    assert r.status_code == 422  # it is a Company Profile field now
+    assert "display_name" not in client.get(URL, headers=bearer(a.auth_user_id)).json()
 
 
 def test_unchanged_save_is_a_noop_without_audit(
@@ -160,11 +154,11 @@ def test_recent_changes_lists_last_five_with_who_when_what(
 ) -> None:
     a = make_tenant("a")
     for i in range(7):
-        r = client.put(URL, json={"display_name": f"Name {i}"}, headers=bearer(a.auth_user_id))
-        assert r.status_code == 200
+        r = client.put(URL, json={"upi_id": f"name{i}@okaxis"}, headers=fresh_auth(a.auth_user_id))
+        assert r.status_code == 200, r.text
     changes = client.get(URL, headers=bearer(a.auth_user_id)).json()["recent_changes"]
     assert len(changes) == 5
-    assert changes[0]["fields"] == ["display_name"]
+    assert changes[0]["fields"] == ["upi_id"]
     assert changes[0]["actor"] == "user@example.test"
     assert changes[0]["at"] >= changes[-1]["at"]
 
@@ -173,8 +167,6 @@ def test_recent_changes_lists_last_five_with_who_when_what(
 @pytest.mark.parametrize(
     ("patch", "field"),
     [
-        ({"display_name": "A"}, "display_name"),
-        ({"display_name": "x" * 61}, "display_name"),
         ({"upi_id": "no-at-sign"}, "upi_id"),
         ({"upi_id": "a b@bank"}, "upi_id"),
         ({"upi_number": "12345"}, "upi_number"),
@@ -193,7 +185,7 @@ def test_field_format_validation(
     patch: dict[str, Any], field: str, client: TestClient, make_tenant: MakeTenant
 ) -> None:
     a = make_tenant("a")
-    r = client.put(URL, json={"display_name": "Acme", **patch}, headers=fresh_auth(a.auth_user_id))
+    r = client.put(URL, json=patch, headers=fresh_auth(a.auth_user_id))
     assert r.status_code == 422
     assert field in [e["loc"][-1] for e in r.json()["detail"]]
 
@@ -221,7 +213,7 @@ def test_enabled_methods_must_be_fully_configured(
     patch: dict[str, Any], field: str, client: TestClient, make_tenant: MakeTenant
 ) -> None:
     a = make_tenant("a")
-    r = client.put(URL, json={"display_name": "Acme", **patch}, headers=fresh_auth(a.auth_user_id))
+    r = client.put(URL, json=patch, headers=fresh_auth(a.auth_user_id))
     assert r.status_code == 422
     assert field in [e["loc"][-1] for e in r.json()["detail"]]
 
@@ -230,18 +222,18 @@ def test_blank_strings_are_treated_as_empty_and_disabled_methods_may_be_partial(
     client: TestClient, make_tenant: MakeTenant
 ) -> None:
     a = make_tenant("a")
-    body = {"display_name": " Acme ", "upi_id": "  ", "bank_name": "HDFC Bank"}  # bank disabled
+    body = {"upi_id": "  ", "bank_name": "HDFC Bank"}  # bank disabled
     r = client.put(URL, json=body, headers=fresh_auth(a.auth_user_id))
     assert r.status_code == 200, r.text
     out = r.json()
-    assert (out["display_name"], out["upi_id"], out["bank_name"]) == ("Acme", None, "HDFC Bank")
+    assert (out["upi_id"], out["bank_name"]) == (None, "HDFC Bank")
 
 
 def test_saving_with_no_enabled_method_is_allowed_incomplete_state(
     client: TestClient, make_tenant: MakeTenant
 ) -> None:
     a = make_tenant("a")
-    r = client.put(URL, json={"display_name": "Acme"}, headers=bearer(a.auth_user_id))
+    r = client.put(URL, json={}, headers=bearer(a.auth_user_id))
     assert r.status_code == 200
     assert not any(
         r.json()[k] for k in ("upi_enabled", "upi_number_enabled", "qr_enabled", "bank_enabled")
@@ -255,29 +247,29 @@ def test_forged_employer_id_in_body_is_rejected_and_ignored(
     a, b = make_tenant("a"), make_tenant("b")
     r = client.put(
         URL,
-        json={"display_name": "Hijack", "employer_id": str(b.employer_id)},
+        json={"upi_id": "hijack@okaxis", "employer_id": str(b.employer_id)},
         headers=fresh_auth(a.auth_user_id),
     )
     assert r.status_code == 422
     with admin_engine.connect() as c:
-        rows = c.execute(text("SELECT employer_id, display_name FROM payment_settings")).all()
-    names: dict[Any, Any] = {r.employer_id: r.display_name for r in rows}
-    assert names[b.employer_id] == "Acme"  # untouched seed value
-    assert names[a.employer_id] == "Acme"
+        rows = c.execute(text("SELECT employer_id, upi_id FROM payment_settings")).all()
+    upis: dict[Any, Any] = {r.employer_id: r.upi_id for r in rows}
+    assert upis[b.employer_id] is None  # untouched seed value
+    assert upis[a.employer_id] is None
 
 
 def test_forged_employer_id_in_query_and_headers_is_ignored(
     client: TestClient, make_tenant: MakeTenant
 ) -> None:
     a, b = make_tenant("a"), make_tenant("b")
-    client.put(URL, json={"display_name": "Alpha Co"}, headers=bearer(a.auth_user_id))
-    client.put(URL, json={"display_name": "Beta Co"}, headers=bearer(b.auth_user_id))
+    client.put(URL, json={"upi_id": "alpha@okaxis"}, headers=fresh_auth(a.auth_user_id))
+    client.put(URL, json={"upi_id": "beta@okaxis"}, headers=fresh_auth(b.auth_user_id))
     r = client.get(
         URL,
         params={"employer_id": str(b.employer_id)},
         headers={**bearer(a.auth_user_id), "X-Employer-Id": str(b.employer_id)},
     )
-    assert r.json()["display_name"] == "Alpha Co"
+    assert r.json()["upi_id"] == "alpha@okaxis"
 
 
 def test_each_employer_only_ever_sees_and_changes_its_own_settings(

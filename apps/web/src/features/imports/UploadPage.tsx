@@ -1,70 +1,132 @@
 import { useEffect, useRef, useState } from 'react'
-import { FileSpreadsheet, Trash2, Upload } from 'lucide-react'
+import { FileSpreadsheet, Sheet, Upload } from 'lucide-react'
 import { Link, useBlocker } from 'react-router'
-import { Alert, Button, Card, ConfirmDialog, Spinner } from '@/components/ui'
+import { Alert, Badge, Button, Card, ConfirmDialog, Spinner } from '@/components/ui'
 import {
+  analyzeSource,
   confirmImport,
-  previewFile,
+  previewSource,
+  useGoogleConfig,
   validateRows,
+  type Analysis,
   type ImportPreview,
   type ImportRow,
+  type Source,
 } from '@/features/imports/api'
+import { MappingStep, type MappingChoice } from '@/features/imports/MappingStep'
+import { ReviewList } from '@/features/imports/ReviewList'
+import { toDisplay } from '@/features/imports/rows'
 import { cn } from '@/lib/cn'
 import { routes } from '@/lib/routes'
 
 const MAX_BYTES = 5 * 1024 * 1024
+const EXTENSIONS = ['.xlsx', '.xls', '.csv', '.pdf']
 
 type Step =
   | { kind: 'choose' }
-  | { kind: 'reading' }
-  | { kind: 'review'; filename: string }
-  | { kind: 'saving'; filename: string }
+  | { kind: 'reading'; what: string }
+  | { kind: 'mapping'; busy: boolean }
+  | { kind: 'review'; saving: boolean }
   | { kind: 'done'; imported: number }
-
-/** Server dates are ISO; people type and read DD/MM/YYYY. */
-function showDate(iso: string | null): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '')
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : (iso ?? '')
-}
-
-function toDisplay(rows: ImportRow[]): ImportRow[] {
-  return rows.map((r) => ({
-    ...r,
-    due_date: r.errors.some((e) => e.field === 'due_date')
-      ? r.due_date
-      : showDate(r.due_date) || null,
-  }))
-}
 
 export function UploadPage() {
   const [step, setStep] = useState<Step>({ kind: 'choose' })
+  const [source, setSource] = useState<Source | null>(null)
+  const [analysis, setAnalysis] = useState<Analysis | null>(null)
+  const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [rows, setRows] = useState<ImportRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [sheetForm, setSheetForm] = useState(false)
+  const [sheetUrl, setSheetUrl] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  function reset() {
+    setSource(null)
+    setAnalysis(null)
+    setPreview(null)
+    setRows([])
+    setError(null)
+    setSheetForm(false)
+    setSheetUrl('')
+    setStep({ kind: 'choose' })
+  }
+
+  async function analyze(next: Source, opts: { sheet?: number; headerRow?: number } = {}) {
+    setError(null)
+    const result = await analyzeSource(next, opts)
+    if (!result.ok) {
+      setError(result.message)
+      // Re-analysing an already open file keeps the mapping screen; a first read goes back to start.
+      setStep(analysis ? { kind: 'mapping', busy: false } : { kind: 'choose' })
+      return
+    }
+    setSource(next)
+    setAnalysis(result.data)
+    setStep({ kind: 'mapping', busy: false })
+  }
 
   async function readFile(file: File | undefined) {
     if (!file) return
     setError(null)
     const name = file.name.toLowerCase()
-    if (!name.endsWith('.xlsx') && !name.endsWith('.csv')) {
-      setError('We can read Excel (.xlsx) and CSV files. Please upload one of those.')
+    if (!EXTENSIONS.some((e) => name.endsWith(e))) {
+      setError('We can read Excel (.xlsx, .xls), CSV and PDF files. Please upload one of those.')
       return
     }
     if (file.size > MAX_BYTES) {
       setError('This file is larger than 5 MB. Split it and upload in parts.')
       return
     }
-    setStep({ kind: 'reading' })
-    const result = await previewFile(file)
-    if (!result.ok) {
-      setError(result.message)
-      setStep({ kind: 'choose' })
+    setAnalysis(null)
+    setStep({
+      kind: 'reading',
+      what: name.endsWith('.pdf') ? 'Reading your PDF…' : 'Reading your file…',
+    })
+    await analyze({ kind: 'file', file })
+  }
+
+  async function readSheet() {
+    const url = sheetUrl.trim()
+    if (!url) {
+      setError('Paste the link to your Google Sheet.')
       return
     }
-    const preview: ImportPreview = result.data
-    setRows(toDisplay(preview.rows))
-    setStep({ kind: 'review', filename: preview.filename })
+    setAnalysis(null)
+    setStep({ kind: 'reading', what: 'Reading your Google Sheet…' })
+    await analyze({ kind: 'sheet', url })
+  }
+
+  async function changeSheet(sheet: number) {
+    if (!source) return
+    setStep({ kind: 'mapping', busy: true })
+    await analyze(source, { sheet })
+  }
+
+  async function changeHeaderRow(headerRow: number) {
+    if (!source || !analysis) return
+    setStep({ kind: 'mapping', busy: true })
+    await analyze(source, { sheet: analysis.sheet, headerRow })
+  }
+
+  async function toReview(next: MappingChoice) {
+    if (!source || !analysis) return
+    setError(null)
+    setStep({ kind: 'mapping', busy: true })
+    const result = await previewSource(source, {
+      sheet: analysis.sheet,
+      headerRow: analysis.header_row,
+      mapping: next.mapping,
+      dateOrder: next.dateOrder,
+    })
+    if (!result.ok) {
+      setError(result.message)
+      setStep({ kind: 'mapping', busy: false })
+      return
+    }
+    setPreview(result.data)
+    setRows(toDisplay(result.data.rows))
+    setStep({ kind: 'review', saving: false })
   }
 
   function edit(index: number, field: keyof ImportRow, value: string) {
@@ -82,36 +144,36 @@ export function UploadPage() {
   }
 
   async function confirm() {
-    if (step.kind !== 'review') return
+    if (step.kind !== 'review' || !preview) return
     setError(null)
-    setStep({ kind: 'saving', filename: step.filename })
+    setStep({ kind: 'review', saving: true })
     // Check everything once more right now: an edit may still be unchecked (the click can land before
     // that field's own check finished), and the server must see exactly what will be saved.
     const checked = await validateRows(rows)
     if (!checked.ok) {
       setError(checked.message)
-      setStep({ kind: 'review', filename: step.filename })
+      setStep({ kind: 'review', saving: false })
       return
     }
     if (checked.data.some((r) => r.errors.length > 0)) {
       setRows(toDisplay(checked.data))
-      setStep({ kind: 'review', filename: step.filename })
+      setStep({ kind: 'review', saving: false })
       return
     }
-    const result = await confirmImport(step.filename, checked.data)
+    const result = await confirmImport(preview.filename, preview.source, checked.data)
     if (result.ok) {
       setStep({ kind: 'done', imported: result.data.imported })
       return
     }
     setError(result.message)
-    setStep({ kind: 'review', filename: step.filename })
+    setStep({ kind: 'review', saving: false })
   }
 
   const invalid = rows.filter((r) => r.errors.length > 0).length
   const canImport = rows.length > 0 && invalid === 0
 
   // Rows that are being reviewed exist only in this browser tab until they are imported.
-  const unsaved = step.kind === 'review' || step.kind === 'saving'
+  const unsaved = step.kind === 'review'
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
       unsaved && currentLocation.pathname !== nextLocation.pathname,
@@ -125,16 +187,16 @@ export function UploadPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold">Upload customers</h1>
+      <h1 className="text-2xl font-semibold">Import customer collections</h1>
 
       {error && <Alert tone="error">{error}</Alert>}
 
       {(step.kind === 'choose' || step.kind === 'reading') && (
         <Card className="flex flex-col gap-4">
           <p className="text-ink-2">
-            Upload an Excel (.xlsx) or CSV file with these columns:{' '}
-            <strong>Customer Name, Phone Number, Amount Due, Reference</strong> and optionally{' '}
-            <strong>Due Date</strong>. You'll check every row before anything is saved.
+            Upload an Excel, CSV or PDF file, or import from Google Sheets. We'll automatically
+            detect customer names, phone numbers, outstanding amounts, references and dates. You can
+            review and correct the mapping before anything is imported.
           </p>
           <div
             onDragOver={(e) => {
@@ -155,7 +217,7 @@ export function UploadPage() {
             {step.kind === 'reading' ? (
               <div className="flex items-center gap-2" role="status">
                 <Spinner label="" />
-                <span>Reading your file…</span>
+                <span>{step.what}</span>
               </div>
             ) : (
               <>
@@ -164,37 +226,70 @@ export function UploadPage() {
                 <input
                   ref={inputRef}
                   type="file"
-                  accept=".xlsx,.csv"
+                  accept=".xlsx,.xls,.csv,.pdf"
                   className="sr-only"
-                  aria-label="Customer file (.xlsx or .csv)"
+                  aria-label="Customer file (Excel, CSV or PDF)"
                   onChange={(e) => {
                     void readFile(e.target.files?.[0])
                     e.target.value = ''
                   }}
                 />
-                <Button onClick={() => inputRef.current?.click()}>
-                  <Upload className="size-5" aria-hidden="true" />
-                  Choose file
-                </Button>
-                <p className="text-sm text-ink-2">.xlsx or .csv, up to 5 MB</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button onClick={() => inputRef.current?.click()}>
+                    <Upload className="size-5" aria-hidden="true" />
+                    Upload File
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    aria-expanded={sheetForm}
+                    onClick={() => setSheetForm((v) => !v)}
+                  >
+                    <Sheet className="size-5" aria-hidden="true" />
+                    Import from Google Sheets
+                  </Button>
+                </div>
+                <p className="text-sm text-ink-2">
+                  .xlsx, .xls, .csv or .pdf · up to 5 MB · PDFs up to 10 pages
+                </p>
               </>
             )}
           </div>
+          {sheetForm && step.kind === 'choose' && (
+            <GoogleSheetForm url={sheetUrl} onUrl={setSheetUrl} onRead={() => void readSheet()} />
+          )}
           <a
             href={`${import.meta.env.BASE_URL}sample-customers.csv`}
             className="inline-flex min-h-11 items-center text-accent hover:underline"
             download
           >
-            Download a sample CSV
+            Download sample template
           </a>
+          <p className="text-sm text-ink-2">
+            The template is optional. Your file can use its own column names.
+          </p>
         </Card>
       )}
 
-      {(step.kind === 'review' || step.kind === 'saving') && (
+      {step.kind === 'mapping' && analysis && (
+        <MappingStep
+          key={`${analysis.sheet}-${analysis.header_row}-${analysis.filename}`}
+          analysis={analysis}
+          busy={step.busy}
+          onChangeSheet={(s) => void changeSheet(s)}
+          onChangeHeaderRow={(r) => void changeHeaderRow(r)}
+          onBack={reset}
+          onContinue={(c) => void toReview(c)}
+        />
+      )}
+
+      {step.kind === 'review' && preview && (
         <>
           <Card className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="font-semibold">{step.filename}</p>
+              <p className="flex flex-wrap items-center gap-2 font-semibold">
+                {preview.filename}
+                {preview.ocr && <Badge tone="ocr">Read from a scan</Badge>}
+              </p>
               <p aria-live="polite" className="text-ink-2">
                 {rows.length} {rows.length === 1 ? 'customer' : 'customers'} found
                 {invalid > 0 ? ` · ${invalid} need fixing` : ' · all ready'}
@@ -203,42 +298,53 @@ export function UploadPage() {
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="secondary"
-                disabled={step.kind === 'saving'}
+                disabled={step.saving}
                 onClick={() => {
+                  setPreview(null)
                   setRows([])
                   setError(null)
-                  setStep({ kind: 'choose' })
+                  setStep({ kind: 'mapping', busy: false })
                 }}
               >
-                Choose a different file
+                Change mapping
               </Button>
-              <Button
-                loading={step.kind === 'saving'}
-                disabled={!canImport}
-                onClick={() => void confirm()}
-              >
-                {step.kind === 'saving'
+              <Button loading={step.saving} disabled={!canImport} onClick={() => void confirm()}>
+                {step.saving
                   ? 'Importing…'
                   : `Import ${rows.length} ${rows.length === 1 ? 'customer' : 'customers'}`}
               </Button>
             </div>
           </Card>
+          {preview.notes.map((n) => (
+            <Alert key={n} tone={preview.ocr && n.includes('scanned') ? 'warning' : 'info'}>
+              {n}
+            </Alert>
+          ))}
+          {preview.skipped.length > 0 && (
+            <details className="rounded-card border border-line bg-surface p-3">
+              <summary className="flex min-h-11 cursor-pointer items-center font-medium">
+                {preview.skipped.length} {preview.skipped.length === 1 ? 'row was' : 'rows were'}{' '}
+                skipped (totals and repeated headings)
+              </summary>
+              <ul className="mt-2 flex flex-col gap-1 text-ink-2">
+                {preview.skipped.map((s) => (
+                  <li key={s.row_number}>
+                    Row {s.row_number}: {s.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
           {invalid > 0 && (
             <Alert tone="warning">Fix the highlighted rows (or remove them) to continue.</Alert>
           )}
-          <ul className="flex flex-col gap-3" aria-label="Customers to import">
-            {rows.map((row, i) => (
-              <ReviewRow
-                key={row.row_number || i}
-                row={row}
-                index={i}
-                disabled={step.kind === 'saving'}
-                onEdit={(field, value) => edit(i, field, value)}
-                onBlur={() => void recheck(i)}
-                onRemove={() => setRows((prev) => prev.filter((_, j) => j !== i))}
-              />
-            ))}
-          </ul>
+          <ReviewList
+            rows={rows}
+            disabled={step.saving}
+            onEdit={edit}
+            onBlur={(i) => void recheck(i)}
+            onRemove={(i) => setRows((prev) => prev.filter((_, j) => j !== i))}
+          />
         </>
       )}
 
@@ -248,7 +354,7 @@ export function UploadPage() {
           if (!o && blocker.state === 'blocked') blocker.reset()
         }}
         title="Leave without importing?"
-        description="These customers have not been saved yet. If you leave, you will need to upload the file again."
+        description="These customers have not been saved yet. If you leave, you will need to import the file again."
         confirmLabel="Leave"
         cancelLabel="Stay"
         destructive
@@ -270,14 +376,8 @@ export function UploadPage() {
             >
               View collections
             </Link>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setRows([])
-                setStep({ kind: 'choose' })
-              }}
-            >
-              Upload another file
+            <Button variant="secondary" onClick={reset}>
+              Import another file
             </Button>
           </div>
         </Card>
@@ -286,84 +386,60 @@ export function UploadPage() {
   )
 }
 
-const FIELDS: Array<{
-  key: 'customer_name' | 'phone' | 'amount_due' | 'reference' | 'due_date'
-  label: string
-  mode?: 'tel' | 'decimal'
-}> = [
-  { key: 'customer_name', label: 'Customer' },
-  { key: 'phone', label: 'Phone', mode: 'tel' },
-  { key: 'amount_due', label: 'Amount due (₹)', mode: 'decimal' },
-  { key: 'reference', label: 'Reference' },
-  { key: 'due_date', label: 'Due date' },
-]
-
-function ReviewRow({
-  row,
-  index,
-  disabled,
-  onEdit,
-  onBlur,
-  onRemove,
+function GoogleSheetForm({
+  url,
+  onUrl,
+  onRead,
 }: {
-  row: ImportRow
-  index: number
-  disabled: boolean
-  onEdit: (field: keyof ImportRow, value: string) => void
-  onBlur: () => void
-  onRemove: () => void
+  url: string
+  onUrl: (v: string) => void
+  onRead: () => void
 }) {
-  const errorFor = (field: string) => row.errors.find((e) => e.field === field)?.message
+  const config = useGoogleConfig(true)
+  const email = config.data?.service_account_email
   return (
-    <li
-      className={cn(
-        'grid gap-3 rounded-card border bg-surface p-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_auto]',
-        row.errors.length ? 'border-danger' : 'border-line',
-      )}
+    <form
+      className="flex flex-col gap-3 rounded-card border border-line bg-canvas p-4"
+      aria-label="Import from Google Sheets"
+      onSubmit={(e) => {
+        e.preventDefault()
+        onRead()
+      }}
     >
-      {FIELDS.map(({ key, label, mode }) => {
-        const message = errorFor(key)
-        const id = `row-${index}-${key}`
-        return (
-          <div key={key} className="flex flex-col gap-1">
-            <label htmlFor={id} className="text-sm text-ink-2">
-              {label}
-            </label>
-            <input
-              id={id}
-              aria-label={`${label}, row ${index + 1}`}
-              aria-invalid={message ? true : undefined}
-              aria-describedby={message ? `${id}-err` : undefined}
-              inputMode={mode}
-              placeholder={key === 'due_date' ? 'DD/MM/YYYY' : undefined}
-              disabled={disabled}
-              value={(row[key] as string | null) ?? ''}
-              onChange={(e) => onEdit(key, e.target.value)}
-              onBlur={onBlur}
-              className={cn(
-                'min-h-11 w-full rounded-control border bg-surface px-3',
-                message ? 'border-danger' : 'border-field',
-              )}
-            />
-            {message && (
-              <p id={`${id}-err`} className="text-sm text-danger">
-                {message}
-              </p>
-            )}
-          </div>
-        )
-      })}
-      <div className="flex items-end">
-        <Button
-          variant="destructive-outline"
-          disabled={disabled}
-          aria-label={`Remove row ${index + 1}`}
-          onClick={onRemove}
-        >
-          <Trash2 className="size-5" aria-hidden="true" />
-          <span className="lg:sr-only">Remove</span>
-        </Button>
+      <label className="flex flex-col gap-1 font-medium" htmlFor="sheet-url">
+        Google Sheets link
+      </label>
+      <input
+        id="sheet-url"
+        type="url"
+        inputMode="url"
+        autoCapitalize="none"
+        autoComplete="off"
+        placeholder="https://docs.google.com/spreadsheets/d/…"
+        value={url}
+        onChange={(e) => onUrl(e.target.value)}
+        className="min-h-11 w-full rounded-control border border-field bg-surface px-3"
+      />
+      <div className="text-sm text-ink-2">
+        <p>
+          <strong>Anyone with the link can view:</strong> paste the link and we'll read it.
+        </p>
+        {config.data?.private_access && email ? (
+          <p>
+            <strong>Private sheet:</strong> share the sheet with our Google service account as
+            Viewer, then paste the link. Share it with{' '}
+            <code className="font-mono break-all">{email}</code>.
+          </p>
+        ) : (
+          <p>
+            <strong>Private sheet:</strong> importing private sheets isn't set up yet. Turn on
+            "Anyone with the link can view" in Google Sheets to import it.
+          </p>
+        )}
       </div>
-    </li>
+      <div>
+        <Button type="submit">Read sheet</Button>
+      </div>
+    </form>
   )
 }

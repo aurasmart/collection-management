@@ -65,7 +65,7 @@ def test_phones_normalise_to_e164_india(raw: Any, expected: str | None) -> None:
 
 
 @pytest.mark.parametrize(
-    "raw", ["12345", "5876543210", "98765abcde", "98765432101", "+44 7700 900123"]
+    "raw", ["12345", "5876543210", "98765abcde", "98765432101", "+91 5876543210"]
 )
 def test_bad_phones_are_rejected(raw: str) -> None:
     value, err = parse_phone(raw)
@@ -136,3 +136,7 @@ def test_validate_row_collects_every_problem() -> None:
     )
     assert ok.errors == []
     assert (ok.phone, ok.amount_due, ok.due_date) == ("+919876543210", "15000.00", None)
+
+
+def test_international_numbers_are_kept_not_rejected() -> None:
+    assert parse_phone("+44 7700 900123") == ("+447700900123", None)

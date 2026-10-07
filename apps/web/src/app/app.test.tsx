@@ -32,7 +32,7 @@ describe('App shell (signed in)', () => {
     expect(NAV_ITEMS.map((n) => n.label)).toEqual([
       'Dashboard',
       'Collections',
-      'Upload',
+      'Import',
       'Settings',
     ])
   })

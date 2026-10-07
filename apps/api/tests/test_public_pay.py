@@ -59,9 +59,17 @@ def configure(
         c.execute(text("DELETE FROM payment_settings WHERE employer_id = :e"), {"e": t.employer_id})
         c.execute(
             text(
-                "INSERT INTO payment_settings (employer_id, display_name, upi_id, upi_number, "
+                "INSERT INTO company_profiles (employer_id, display_name) "
+                "VALUES (:e, :display_name) "
+                "ON CONFLICT (employer_id) DO UPDATE SET display_name = EXCLUDED.display_name"
+            ),
+            values,
+        )
+        c.execute(
+            text(
+                "INSERT INTO payment_settings (employer_id, upi_id, upi_number, "
                 "bank_name, account_name, account_number, ifsc, qr_code_storage_key, upi_enabled, "
-                "upi_number_enabled, qr_enabled, bank_enabled) VALUES (:e, :display_name, "
+                "upi_number_enabled, qr_enabled, bank_enabled) VALUES (:e, "
                 ":upi_id, :upi_number, :bank_name, :account_name, :account_number, :ifsc, :qrk, "
                 ":ue, :ne, :qe, :be)"
             ),
@@ -100,6 +108,11 @@ def test_the_page_shows_this_customers_amount_and_the_company_payment_details(
         "state": "PENDING",
         "company_name": "Acme Traders",
         "customer_name": "Rahul Sharma",
+        "has_logo": False,
+        "company_phone": None,
+        "company_email": None,
+        "company_address": None,
+        "company_gstin": None,
         "amount_due": "15000.00",
         "reference": "INV-1",
         "upi_id": "acme@okaxis",
@@ -200,7 +213,9 @@ def test_a_paid_customer_sees_payment_received_and_no_instructions(
     r = client.get(f"/api/v1/public/pay/{token}")
     assert r.json() == {
         "state": "PAID", "company_name": "Acme Traders", "customer_name": "Rahul Sharma",
-        "amount_due": None, "reference": None, "upi_id": None, "upi_number": None,
+        "has_logo": False, "company_phone": None, "company_email": None,
+        "company_address": None, "company_gstin": None, "amount_due": None, "reference": None,
+        "upi_id": None, "upi_number": None,
         "has_qr": False, "bank": None,
     }  # fmt: skip
     assert client.get(f"/api/v1/public/pay/{token}/qr").status_code == 404
@@ -247,9 +262,13 @@ def test_one_employers_link_never_shows_another_employers_details(
     with admin_engine.connect() as c:
         c.execute(
             text(
-                "INSERT INTO payment_settings (employer_id, display_name, upi_id, upi_enabled) "
-                "VALUES (:e, 'Beta Co', 'beta@upi', true)"
+                "INSERT INTO payment_settings (employer_id, upi_id, upi_enabled) "
+                "VALUES (:e, 'beta@upi', true)"
             ),
+            {"e": b.employer_id},
+        )
+        c.execute(
+            text("INSERT INTO company_profiles (employer_id, display_name) VALUES (:e, 'Beta Co')"),
             {"e": b.employer_id},
         )
     _, tb = page_token(client, b, "Rahul")

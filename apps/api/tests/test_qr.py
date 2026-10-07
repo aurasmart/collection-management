@@ -180,18 +180,12 @@ def test_cannot_enable_qr_without_one_and_cannot_remove_while_enabled(
 ) -> None:
     a = make_tenant("a")
     h = fresh_auth(a.auth_user_id)
-    assert (
-        client.put(URL, json={"display_name": "Acme", "qr_enabled": True}, headers=h).status_code
-        == 422
-    )
+    assert client.put(URL, json={"qr_enabled": True}, headers=h).status_code == 422
     upload(client, h, image_bytes())
-    assert (
-        client.put(URL, json={"display_name": "Acme", "qr_enabled": True}, headers=h).status_code
-        == 200
-    )
+    assert client.put(URL, json={"qr_enabled": True}, headers=h).status_code == 200
     r = client.delete(QR, headers=h)
     assert r.status_code == 422 and r.json()["detail"][0]["loc"][-1] == "qr_enabled"
-    client.put(URL, json={"display_name": "Acme", "qr_enabled": False}, headers=h)
+    client.put(URL, json={"qr_enabled": False}, headers=h)
     assert client.delete(QR, headers=h).json()["has_qr"] is False
     assert client.get(QR, headers=bearer(a.auth_user_id)).status_code == 404
 

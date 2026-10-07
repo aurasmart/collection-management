@@ -7,16 +7,14 @@ from __future__ import annotations
 
 import re
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator
 
 UPI_ID_RE = re.compile(r"^[A-Za-z0-9._-]{2,64}@[A-Za-z][A-Za-z0-9.-]{1,63}$")
 UPI_NUMBER_RE = re.compile(r"^[6-9][0-9]{9}$")
 ACCOUNT_NUMBER_RE = re.compile(r"^[0-9]{9,18}$")
 IFSC_RE = re.compile(r"^[A-Z]{4}0[A-Z0-9]{6}$")
-
-Trimmed = Annotated[str, StringConstraints(strip_whitespace=True)]
 
 
 def _blank_to_none(v: Any) -> Any:
@@ -29,9 +27,6 @@ def _blank_to_none(v: Any) -> Any:
 class PaymentSettingsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    display_name: Annotated[
-        str, StringConstraints(strip_whitespace=True, min_length=2, max_length=60)
-    ]
     upi_id: str | None = None
     upi_number: str | None = None
     bank_name: str | None = None
@@ -103,7 +98,6 @@ class SettingChange(BaseModel):
 
 
 class PaymentSettingsOut(BaseModel):
-    display_name: str | None
     upi_id: str | None
     upi_number: str | None
     bank_name: str | None

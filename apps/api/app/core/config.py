@@ -53,6 +53,22 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     ai_monthly_cost_cap_usd: float = 0.0
 
+    # Scanned-PDF text recognition (Tesseract, installed in the Docker image). Runs inside the
+    # request: hard page/time limits, no background workers.
+    ocr_enabled: bool = True
+    ocr_languages: str = "eng"
+    pdf_max_pages: int = 10
+    pdf_timeout_seconds: int = 60
+
+    # Google Sheets import. Public sheets need nothing. Private sheets use ONE service account
+    # that the employer shares the sheet with (Viewer). The private key is backend-only.
+    google_service_account_email: str | None = None
+    google_service_account_private_key: str | None = None
+    # Google's own endpoints. Only these configured origins are ever contacted (SSRF guard).
+    google_docs_base_url: str = "https://docs.google.com"
+    google_sheets_api_base_url: str = "https://sheets.googleapis.com"
+    google_token_url: str = "https://oauth2.googleapis.com/token"  # noqa: S105 (a URL, not a secret)
+
     # Retention (frozen product defaults).
     import_retention_days: int = 90
     failed_import_retention_days: int = 7
@@ -98,6 +114,11 @@ class Settings(BaseSettings):
             self.supabase_url and self.supabase_service_role_key
         ):
             raise ValueError("STORAGE_BACKEND=supabase requires SUPABASE_URL and the service key")
+        if bool(self.google_service_account_email) != bool(self.google_service_account_private_key):
+            raise ValueError(
+                "Set BOTH GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY, "
+                "or neither"
+            )
         if self.ai_enabled and (not self.anthropic_api_key or self.ai_monthly_cost_cap_usd <= 0):
             raise ValueError(
                 "AI_ENABLED requires ANTHROPIC_API_KEY and AI_MONTHLY_COST_CAP_USD > 0"

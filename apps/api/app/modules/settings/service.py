@@ -19,7 +19,7 @@ QR_MIN_SIDE = 300
 QR_MAX_SIDE = 4096
 Image.MAX_IMAGE_PIXELS = QR_MAX_SIDE * QR_MAX_SIDE
 
-# Everything except the display name changes what customers are told about paying.
+# Every payment-detail change alters what customers are told about paying.
 SENSITIVE_FIELDS = (
     "upi_id",
     "upi_number",
@@ -32,10 +32,9 @@ SENSITIVE_FIELDS = (
     "qr_enabled",
     "bank_enabled",
 )
-EDITABLE_FIELDS = ("display_name", *SENSITIVE_FIELDS)
+EDITABLE_FIELDS = SENSITIVE_FIELDS
 
 _EMPTY: dict[str, Any] = {
-    "display_name": None,
     "upi_id": None,
     "upi_number": None,
     "bank_name": None,
@@ -61,7 +60,7 @@ def load_row(db: Session) -> dict[str, Any] | None:
     row = (
         db.execute(
             text(
-                "SELECT id, display_name, upi_id, upi_number, qr_code_storage_key, bank_name, "
+                "SELECT id, upi_id, upi_number, qr_code_storage_key, bank_name, "
                 "account_name, account_number, ifsc, upi_enabled, upi_number_enabled, qr_enabled, "
                 "bank_enabled, updated_at FROM payment_settings"
             )
@@ -129,16 +128,18 @@ def write_audit(
     entity_id: uuid.UUID | None,
     fields: list[str],
     reauthenticated: bool,
+    entity_type: str = "payment_settings",
 ) -> None:
     """Field NAMES only: never values, passwords, tokens or keys (Stage 1 §Q, Stage 2 §23)."""
     db.execute(
         text(
             "INSERT INTO audit_events "
             "(employer_id, actor, entity_type, entity_id, action, details) "
-            "VALUES (:e, :actor, 'payment_settings', :eid, 'settings_changed', CAST(:d AS jsonb))"
+            "VALUES (:e, :actor, :etype, :eid, 'settings_changed', CAST(:d AS jsonb))"
         ),
         {
             "e": employer_id,
+            "etype": entity_type,
             "actor": actor,
             "eid": entity_id,
             "d": _json(

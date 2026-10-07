@@ -1,6 +1,76 @@
 {
   "components": {
     "schemas": {
+      "AnalysisOut": {
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/ColumnOut"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "data_rows": {
+            "title": "Data Rows",
+            "type": "integer"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldStatusOut"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "header_row": {
+            "title": "Header Row",
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "ocr": {
+            "title": "Ocr",
+            "type": "boolean"
+          },
+          "sheet": {
+            "title": "Sheet",
+            "type": "integer"
+          },
+          "sheets": {
+            "items": {
+              "$ref": "#/components/schemas/SheetOut"
+            },
+            "title": "Sheets",
+            "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "source",
+          "ocr",
+          "sheets",
+          "sheet",
+          "header_row",
+          "columns",
+          "fields",
+          "data_rows",
+          "notes"
+        ],
+        "title": "AnalysisOut",
+        "type": "object"
+      },
       "BankDetails": {
         "properties": {
           "account_name": {
@@ -50,7 +120,132 @@
         "title": "BankDetails",
         "type": "object"
       },
+      "Body_analyzeImport": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "header_row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Header Row"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          },
+          "sheet_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet Url"
+          }
+        },
+        "title": "Body_analyzeImport",
+        "type": "object"
+      },
       "Body_previewImport": {
+        "properties": {
+          "date_order": {
+            "default": "dmy",
+            "enum": [
+              "dmy",
+              "mdy"
+            ],
+            "title": "Date Order",
+            "type": "string"
+          },
+          "file": {
+            "anyOf": [
+              {
+                "contentMediaType": "application/octet-stream",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File"
+          },
+          "header_row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Header Row"
+          },
+          "mapping": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          },
+          "sheet_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet Url"
+          }
+        },
+        "title": "Body_previewImport",
+        "type": "object"
+      },
+      "Body_uploadCompanyLogo": {
         "properties": {
           "file": {
             "contentMediaType": "application/octet-stream",
@@ -61,7 +256,7 @@
         "required": [
           "file"
         ],
-        "title": "Body_previewImport",
+        "title": "Body_uploadCompanyLogo",
         "type": "object"
       },
       "Body_uploadPaymentQr": {
@@ -340,6 +535,420 @@
         "title": "CollectionRow",
         "type": "object"
       },
+      "ColumnOut": {
+        "properties": {
+          "alternatives": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Alternatives",
+            "type": "array"
+          },
+          "confidence": {
+            "enum": [
+              "high",
+              "uncertain",
+              "none"
+            ],
+            "title": "Confidence",
+            "type": "string"
+          },
+          "date_info": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DateInfoOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "header": {
+            "title": "Header",
+            "type": "string"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "samples": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Samples",
+            "type": "array"
+          },
+          "suggested": {
+            "anyOf": [
+              {
+                "enum": [
+                  "customer_name",
+                  "phone",
+                  "amount_due",
+                  "reference",
+                  "due_date"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested"
+          }
+        },
+        "required": [
+          "index",
+          "header",
+          "samples",
+          "suggested",
+          "confidence",
+          "alternatives",
+          "date_info"
+        ],
+        "title": "ColumnOut",
+        "type": "object"
+      },
+      "CompanyChange": {
+        "properties": {
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "at",
+          "actor",
+          "fields"
+        ],
+        "title": "CompanyChange",
+        "type": "object"
+      },
+      "CompanyProfileIn": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "contact_person": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Person"
+          },
+          "display_name": {
+            "maxLength": 60,
+            "minLength": 2,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "gstin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gstin"
+          },
+          "legal_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Name"
+          },
+          "pan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pan"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "pin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pin"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "required": [
+          "display_name"
+        ],
+        "title": "CompanyProfileIn",
+        "type": "object"
+      },
+      "CompanyProfileOut": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "contact_person": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Person"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "gstin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gstin"
+          },
+          "has_logo": {
+            "title": "Has Logo",
+            "type": "boolean"
+          },
+          "legal_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Name"
+          },
+          "pan": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pan"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "pin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pin"
+          },
+          "recent_changes": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyChange"
+            },
+            "title": "Recent Changes",
+            "type": "array"
+          },
+          "saved": {
+            "title": "Saved",
+            "type": "boolean"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "required": [
+          "display_name",
+          "legal_name",
+          "address",
+          "city",
+          "state",
+          "pin",
+          "gstin",
+          "pan",
+          "contact_person",
+          "phone",
+          "email",
+          "website",
+          "has_logo",
+          "saved",
+          "updated_at",
+          "recent_changes"
+        ],
+        "title": "CompanyProfileOut",
+        "type": "object"
+      },
       "ConfirmIn": {
         "additionalProperties": false,
         "properties": {
@@ -357,6 +966,23 @@
             "minItems": 1,
             "title": "Rows",
             "type": "array"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "excel",
+                  "csv",
+                  "pdf",
+                  "google_sheets"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
           }
         },
         "required": [
@@ -414,6 +1040,36 @@
         "title": "DashboardOut",
         "type": "object"
       },
+      "DateInfoOut": {
+        "properties": {
+          "ambiguous": {
+            "title": "Ambiguous",
+            "type": "boolean"
+          },
+          "examples": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Examples",
+            "type": "array"
+          },
+          "order": {
+            "enum": [
+              "dmy",
+              "mdy"
+            ],
+            "title": "Order",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ambiguous",
+          "order",
+          "examples"
+        ],
+        "title": "DateInfoOut",
+        "type": "object"
+      },
       "EmployerOut": {
         "properties": {
           "email": {
@@ -454,6 +1110,91 @@
           "message"
         ],
         "title": "FieldError",
+        "type": "object"
+      },
+      "FieldStatusOut": {
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "competing": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Competing",
+            "type": "array"
+          },
+          "field": {
+            "enum": [
+              "customer_name",
+              "phone",
+              "amount_due",
+              "reference",
+              "due_date"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "detected",
+              "uncertain",
+              "missing"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "label",
+          "required",
+          "status",
+          "column",
+          "competing"
+        ],
+        "title": "FieldStatusOut",
+        "type": "object"
+      },
+      "GoogleConfigOut": {
+        "properties": {
+          "private_access": {
+            "title": "Private Access",
+            "type": "boolean"
+          },
+          "service_account_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Account Email"
+          }
+        },
+        "required": [
+          "private_access",
+          "service_account_email"
+        ],
+        "title": "GoogleConfigOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -535,12 +1276,6 @@
             ],
             "title": "Bank Name"
           },
-          "display_name": {
-            "maxLength": 60,
-            "minLength": 2,
-            "title": "Display Name",
-            "type": "string"
-          },
           "ifsc": {
             "anyOf": [
               {
@@ -590,9 +1325,6 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "display_name"
-        ],
         "title": "PaymentSettingsIn",
         "type": "object"
       },
@@ -634,17 +1366,6 @@
               }
             ],
             "title": "Bank Name"
-          },
-          "display_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Display Name"
           },
           "has_qr": {
             "title": "Has Qr",
@@ -716,7 +1437,6 @@
           }
         },
         "required": [
-          "display_name",
           "upi_id",
           "upi_number",
           "bank_name",
@@ -744,12 +1464,34 @@
             "title": "Invalid",
             "type": "integer"
           },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "ocr": {
+            "title": "Ocr",
+            "type": "boolean"
+          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/RowOut"
             },
             "title": "Rows",
             "type": "array"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/SkippedOut"
+            },
+            "title": "Skipped",
+            "type": "array"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
           },
           "total": {
             "title": "Total",
@@ -762,7 +1504,11 @@
         },
         "required": [
           "filename",
+          "source",
+          "ocr",
           "rows",
+          "skipped",
+          "notes",
           "total",
           "valid",
           "invalid"
@@ -793,13 +1539,62 @@
               }
             ]
           },
+          "company_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Address"
+          },
+          "company_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Email"
+          },
+          "company_gstin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Gstin"
+          },
           "company_name": {
             "title": "Company Name",
             "type": "string"
           },
+          "company_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Phone"
+          },
           "customer_name": {
             "title": "Customer Name",
             "type": "string"
+          },
+          "has_logo": {
+            "default": false,
+            "title": "Has Logo",
+            "type": "boolean"
           },
           "has_qr": {
             "default": false,
@@ -1017,6 +1812,14 @@
           "row_number": {
             "title": "Row Number",
             "type": "integer"
+          },
+          "warnings": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FieldError"
+            },
+            "title": "Warnings",
+            "type": "array"
           }
         },
         "required": [
@@ -1074,6 +1877,47 @@
           "fields"
         ],
         "title": "SettingChange",
+        "type": "object"
+      },
+      "SheetOut": {
+        "properties": {
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rows": {
+            "title": "Rows",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "rows"
+        ],
+        "title": "SheetOut",
+        "type": "object"
+      },
+      "SkippedOut": {
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "row_number": {
+            "title": "Row Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_number",
+          "reason"
+        ],
+        "title": "SkippedOut",
         "type": "object"
       },
       "ValidationError": {
@@ -1502,6 +2346,51 @@
         ]
       }
     },
+    "/api/v1/imports/analyze": {
+      "post": {
+        "operationId": "analyzeImport",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_analyzeImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read a file or Google Sheet and suggest what each column means",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/api/v1/imports/confirm": {
       "post": {
         "operationId": "confirmImport",
@@ -1541,6 +2430,32 @@
         ]
       }
     },
+    "/api/v1/imports/google-sheets": {
+      "get": {
+        "operationId": "getGoogleSheetsConfig",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleConfigOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Whether private Google Sheets can be imported, and who to share them with",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
     "/api/v1/imports/preview": {
       "post": {
         "operationId": "previewImport",
@@ -1551,8 +2466,7 @@
                 "$ref": "#/components/schemas/Body_previewImport"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -1581,7 +2495,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Read an .xlsx/.csv file and show the rows",
+        "summary": "Apply the confirmed column mapping and show the normalised rows",
         "tags": [
           "imports"
         ]
@@ -1705,6 +2619,47 @@
         ]
       }
     },
+    "/api/v1/public/pay/{token}/logo": {
+      "get": {
+        "operationId": "getPublicCompanyLogo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "title": "Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No logo"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "The company logo shown on the payment page",
+        "tags": [
+          "public"
+        ]
+      }
+    },
     "/api/v1/public/pay/{token}/qr": {
       "get": {
         "operationId": "getPublicPaymentQr",
@@ -1743,6 +2698,178 @@
         "summary": "The company's general QR image, exactly as uploaded in Settings",
         "tags": [
           "public"
+        ]
+      }
+    },
+    "/api/v1/settings/company": {
+      "get": {
+        "operationId": "getCompanyProfile",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Company profile (own employer only)",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "updateCompanyProfile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyProfileIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Recent password confirmation required (reauth_required)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save the company profile (customer-visible changes need a recent password check)",
+        "tags": [
+          "settings"
+        ]
+      }
+    },
+    "/api/v1/settings/company/logo": {
+      "delete": {
+        "operationId": "deleteCompanyLogo",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Recent password confirmation required (reauth_required)"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remove the logo",
+        "tags": [
+          "settings"
+        ]
+      },
+      "get": {
+        "operationId": "getCompanyLogo",
+        "responses": {
+          "200": {
+            "content": {
+              "image/png": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No logo"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "The employer's own logo (authenticated; the public page has its own route)",
+        "tags": [
+          "settings"
+        ]
+      },
+      "put": {
+        "operationId": "uploadCompanyLogo",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadCompanyLogo"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Recent password confirmation required (reauth_required)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Upload or replace the logo (PNG/JPG/WebP, max 2 MB, at least 64\u00d764)",
+        "tags": [
+          "settings"
         ]
       }
     },

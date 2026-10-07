@@ -67,6 +67,7 @@ TENANT_TABLES = [
     "payment_requests",
     "payments",
     "payment_settings",
+    "company_profiles",
     "notifications",
     "audit_events",
 ]
@@ -193,6 +194,12 @@ def make_tenant(admin_engine: Engine) -> Callable[[str], Tenant]:
             c.execute(
                 text(
                     "INSERT INTO payment_settings (employer_id, display_name) VALUES (:e, 'Acme')"
+                ),
+                {"e": eid},
+            )
+            c.execute(
+                text(
+                    "INSERT INTO company_profiles (employer_id, display_name) VALUES (:e, 'Acme')"
                 ),
                 {"e": eid},
             )

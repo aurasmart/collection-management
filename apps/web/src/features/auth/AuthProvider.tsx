@@ -20,6 +20,13 @@ export type AuthStatus = 'loading' | 'signed-out' | 'signed-in' | 'expired' | 'u
 export type SignInResult =
   { ok: true } | { ok: false; reason: 'invalid' | 'rate_limited' | 'network' | 'unknown' }
 
+export type ChangePasswordResult =
+  | { ok: true }
+  | {
+      ok: false
+      reason: 'wrong_current' | 'same' | 'weak' | 'rate_limited' | 'network' | 'unknown'
+    }
+
 interface AuthState {
   status: AuthStatus
   email: string | null
@@ -29,6 +36,8 @@ interface AuthApi extends AuthState {
   signIn: (email: string, password: string) => Promise<SignInResult>
   /** Re-checks the current user's password (session-expiry and sensitive-change confirmation). */
   confirmPassword: (password: string) => Promise<SignInResult>
+  /** Verifies the current password, then sets the new one on the existing session. */
+  changePassword: (current: string, next: string) => Promise<ChangePasswordResult>
   signOut: () => Promise<void>
 }
 
@@ -104,6 +113,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [signIn, state.email],
   )
 
+  const changePassword = useCallback<AuthApi['changePassword']>(
+    async (current, next) => {
+      if (!supabase) return { ok: false, reason: 'unknown' }
+      const check = await confirmPassword(current)
+      if (!check.ok) {
+        return { ok: false, reason: check.reason === 'invalid' ? 'wrong_current' : check.reason }
+      }
+      try {
+        const { error } = await supabase.auth.updateUser({ password: next })
+        if (!error) return { ok: true }
+        const e = error as { status?: number; code?: string; name?: string }
+        if (e.code === 'same_password') return { ok: false, reason: 'same' }
+        if (e.code === 'weak_password') return { ok: false, reason: 'weak' }
+        if (e.status === 429 || e.code === 'over_request_rate_limit') {
+          return { ok: false, reason: 'rate_limited' }
+        }
+        if (e.name === 'AuthRetryableFetchError' || e.status === 0) {
+          return { ok: false, reason: 'network' }
+        }
+        return { ok: false, reason: 'unknown' }
+      } catch {
+        return { ok: false, reason: 'network' }
+      }
+    },
+    [confirmPassword],
+  )
+
   const signOut = useCallback(async () => {
     if (!supabase) return
     manualSignOut.current = true
@@ -118,8 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<AuthApi>(
-    () => ({ ...state, signIn, confirmPassword, signOut }),
-    [state, signIn, confirmPassword, signOut],
+    () => ({ ...state, signIn, confirmPassword, changePassword, signOut }),
+    [state, signIn, confirmPassword, changePassword, signOut],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

@@ -64,7 +64,7 @@ describe('Dashboard', () => {
     renderApp('/')
     expect(await screen.findByText('No collections yet')).toBeInTheDocument()
     expect(screen.getAllByText('₹0.00', { selector: 'p' })).toHaveLength(2) // outstanding and paid
-    expect(screen.getAllByRole('link', { name: 'Upload Excel' }).length).toBeGreaterThan(0)
+    expect(screen.getAllByRole('link', { name: 'Import customers' }).length).toBeGreaterThan(0)
   })
 
   it('shows an error with Retry', async () => {
