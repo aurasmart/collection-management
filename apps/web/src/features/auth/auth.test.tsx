@@ -76,7 +76,7 @@ describe('route protection', () => {
     mockApi({ 'GET /api/v1/public/pay/tok1234567890': () => json({ detail: 'no' }, 404) })
     renderApp('/pay/tok1234567890')
     expect(
-      await screen.findByRole('heading', { name: "This link isn't valid" }),
+      await screen.findByRole('heading', { name: 'This payment page is unavailable.' }),
     ).toBeInTheDocument()
   })
 })
@@ -163,7 +163,7 @@ describe('session restoration and logout', () => {
   it('signs out of THIS browser only and returns to the login screen', async () => {
     fake.setSession('owner@acme.test')
     const { router } = renderApp('/')
-    await userEvent.click(await screen.findByRole('button', { name: 'Account menu' }))
+    await userEvent.click(await screen.findByRole('button', { name: /account menu/i }))
     await userEvent.click(await screen.findByRole('menuitem', { name: /sign out/i }))
     await waitFor(() => expect(router.state.location.pathname).toBe('/login'))
     expect(fake.auth.signOut).toHaveBeenCalledWith({ scope: 'local' })

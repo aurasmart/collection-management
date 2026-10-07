@@ -25,3 +25,9 @@ export function smsUrl(phone: string, message: string): string {
   // "?&body=" is understood by both Android and iOS messaging apps.
   return `sms:+${digits(phone)}?&body=${encodeURIComponent(message)}`
 }
+
+/** +919876543210 -> +91 98765 43210 (display only; the stored value stays E.164). */
+export function formatPhone(phone: string | null): string {
+  const m = /^\+91(\d{5})(\d{5})$/.exec(phone ?? '')
+  return m ? `+91 ${m[1]} ${m[2]}` : (phone ?? '')
+}

@@ -11,6 +11,7 @@ import {
   type StatusFilter,
 } from '@/features/collections/api'
 import { cn } from '@/lib/cn'
+import { formatPhone } from '@/lib/contact'
 import { formatDate } from '@/lib/date'
 import { formatINR } from '@/lib/money'
 import { routes } from '@/lib/routes'
@@ -26,7 +27,9 @@ export function CollectionsPage() {
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
-  const [marking, setMarking] = useState<CollectionRow | null>(null)
+  const [marking, setMarking] = useState<{ row: CollectionRow; kind: 'paid' | 'unpaid' } | null>(
+    null,
+  )
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -113,19 +116,19 @@ export function CollectionsPage() {
         <Card>
           {q || status !== 'ALL' ? (
             <EmptyState
-              title="No customers match"
+              title="No customers match your search."
               description="Try a different search or filter."
             />
           ) : (
             <EmptyState
-              title="No customers yet"
+              title="No collections yet"
               description="Upload an Excel or CSV file to add your customers."
               action={
                 <Link
                   to={routes.upload}
                   className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-medium text-white"
                 >
-                  Upload customers
+                  Upload Excel
                 </Link>
               }
             />
@@ -139,7 +142,15 @@ export function CollectionsPage() {
             <caption className="sr-only">Customers and what they owe</caption>
             <thead className="hidden text-left text-sm text-ink-2 md:table-header-group">
               <tr>
-                {['Customer', 'Phone', 'Amount due', 'Due date', 'Status', 'Action'].map((h) => (
+                {[
+                  'Customer',
+                  'Phone',
+                  'Amount due',
+                  'Due date',
+                  'Reference',
+                  'Status',
+                  'Action',
+                ].map((h) => (
                   <th key={h} scope="col" className="border-b border-line px-3 py-2 font-medium">
                     {h}
                   </th>
@@ -156,15 +167,13 @@ export function CollectionsPage() {
                     <Link to={routes.collection(row.id)} className="text-accent hover:underline">
                       {row.customer_name}
                     </Link>
-                    {row.reference && (
-                      <span className="block text-sm font-normal text-ink-2">{row.reference}</span>
-                    )}
                   </Cell>
-                  <Cell label="Phone">{row.phone ?? '—'}</Cell>
+                  <Cell label="Phone">{row.phone ? formatPhone(row.phone) : '—'}</Cell>
                   <Cell label="Amount due" className="tabular">
                     {formatINR(row.amount_due)}
                   </Cell>
                   <Cell label="Due date">{row.due_date ? formatDate(row.due_date) : '—'}</Cell>
+                  <Cell label="Reference">{row.reference ?? '—'}</Cell>
                   <Cell label="Status">
                     <StatusPill status={row.status} />
                   </Cell>
@@ -181,10 +190,20 @@ export function CollectionsPage() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          aria-label={`Mark ${row.customer_name} as paid`}
-                          onClick={() => setMarking(row)}
+                          aria-label={`Mark paid for ${row.customer_name}`}
+                          onClick={() => setMarking({ row, kind: 'paid' })}
                         >
                           Mark paid
+                        </Button>
+                      )}
+                      {row.status === 'PAID' && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          aria-label={`Mark unpaid for ${row.customer_name}`}
+                          onClick={() => setMarking({ row, kind: 'unpaid' })}
+                        >
+                          Mark unpaid
                         </Button>
                       )}
                     </div>
@@ -220,10 +239,10 @@ export function CollectionsPage() {
 
       {marking && (
         <MarkDialog
-          id={marking.id}
-          kind="paid"
-          customer={marking.customer_name}
-          amount={marking.amount_due}
+          id={marking.row.id}
+          kind={marking.kind}
+          customer={marking.row.customer_name}
+          amount={marking.row.amount_due}
           open
           onOpenChange={(o) => !o && setMarking(null)}
         />

@@ -7,7 +7,7 @@ import { MarkDialog } from '@/features/collections/MarkDialog'
 import { StatusPill } from '@/features/collections/StatusPill'
 import { useCollection, useCollectionAction } from '@/features/collections/api'
 import { copyText } from '@/lib/clipboard'
-import { paymentMessage, smsUrl, whatsappUrl } from '@/lib/contact'
+import { formatPhone, paymentMessage, smsUrl, whatsappUrl } from '@/lib/contact'
 import { formatDate } from '@/lib/date'
 import { formatINR } from '@/lib/money'
 import { paymentPageLink, routes } from '@/lib/routes'
@@ -51,7 +51,10 @@ export function CollectionDetailPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link to={routes.collections} className="text-accent hover:underline">
+        <Link
+          to={routes.collections}
+          className="inline-flex min-h-11 items-center text-accent hover:underline"
+        >
           ← Collections
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -63,13 +66,14 @@ export function CollectionDetailPage() {
       <Card aria-label="Customer details">
         <dl className="grid gap-4 sm:grid-cols-2">
           <Item label="Customer">{c.customer_name}</Item>
-          <Item label="Phone">{c.phone ?? 'No phone number'}</Item>
+          <Item label="Phone">{c.phone ? formatPhone(c.phone) : 'No phone number'}</Item>
           <Item label="Amount due">
             <span className="tabular text-xl font-semibold">{formatINR(c.amount_due)}</span>
           </Item>
           <Item label="Reference">{c.reference ?? '—'}</Item>
           <Item label="Due date">{c.due_date ? formatDate(c.due_date) : '—'}</Item>
           <Item label="Status">{paid ? 'Paid' : 'Pending'}</Item>
+          <Item label="Payment page">{link ? 'Created' : 'Not created yet'}</Item>
         </dl>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="secondary" disabled={paid} onClick={() => setEditing(true)}>
@@ -91,7 +95,14 @@ export function CollectionDetailPage() {
               <Alert tone="error">Couldn't create the page. Please try again.</Alert>
             )}
             <div>
-              <Button loading={generate.isPending} onClick={() => generate.mutate()}>
+              <Button
+                loading={generate.isPending}
+                onClick={() =>
+                  generate.mutate(undefined, {
+                    onSuccess: () => toast({ title: 'Payment page generated', tone: 'success' }),
+                  })
+                }
+              >
                 <Link2 className="size-5" aria-hidden="true" />
                 Generate Payment Page
               </Button>
@@ -142,9 +153,20 @@ export function CollectionDetailPage() {
                   </a>
                 </>
               ) : (
-                <p className="self-center text-sm text-ink-2">
-                  Add a phone number (Edit) to send by WhatsApp or SMS.
-                </p>
+                <>
+                  <Button variant="secondary" disabled aria-describedby="no-phone-note">
+                    <MessageCircle className="size-5" aria-hidden="true" />
+                    Send on WhatsApp
+                  </Button>
+                  <Button variant="secondary" disabled aria-describedby="no-phone-note">
+                    <MessageSquare className="size-5" aria-hidden="true" />
+                    Send SMS
+                  </Button>
+                  <p id="no-phone-note" className="basis-full text-sm text-ink-2">
+                    This customer has no phone number, so WhatsApp and SMS are unavailable. Use Edit
+                    to add one.
+                  </p>
+                </>
               )}
               <a href={link} target="_blank" rel="noopener noreferrer" className={linkButton}>
                 <ExternalLink className="size-5" aria-hidden="true" />
@@ -152,7 +174,9 @@ export function CollectionDetailPage() {
               </a>
             </div>
             <details className="text-sm text-ink-2">
-              <summary className="cursor-pointer">Message that will be sent</summary>
+              <summary className="flex min-h-11 cursor-pointer items-center">
+                Message that will be sent
+              </summary>
               <pre className="mt-2 whitespace-pre-wrap rounded-control bg-canvas p-3 font-sans">
                 {message}
               </pre>

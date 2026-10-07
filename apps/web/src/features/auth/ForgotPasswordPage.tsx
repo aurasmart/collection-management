@@ -63,7 +63,10 @@ export function ForgotPasswordPage() {
           <Alert tone="success" title="Check your email">
             If this email is registered, a reset link has been sent. Open it in this same browser.
           </Alert>
-          <Link to={routes.login} className="text-center font-medium text-accent hover:underline">
+          <Link
+            to={routes.login}
+            className="inline-flex min-h-11 items-center justify-center font-medium text-accent hover:underline"
+          >
             Back to sign in
           </Link>
         </div>
@@ -86,7 +89,10 @@ export function ForgotPasswordPage() {
           <Button type="submit" loading={isSubmitting}>
             {isSubmitting ? 'Sending…' : 'Send reset link'}
           </Button>
-          <Link to={routes.login} className="text-center font-medium text-accent hover:underline">
+          <Link
+            to={routes.login}
+            className="inline-flex min-h-11 items-center justify-center font-medium text-accent hover:underline"
+          >
             Back to sign in
           </Link>
         </form>

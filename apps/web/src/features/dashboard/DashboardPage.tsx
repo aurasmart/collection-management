@@ -56,14 +56,14 @@ export function DashboardPage() {
         {!d && !query.isError && <Skeleton className="h-32 w-full" />}
         {d && d.recent.length === 0 && (
           <EmptyState
-            title="No customers yet"
+            title="No collections yet"
             description="Upload an Excel or CSV file to add the customers who owe you money."
             action={
               <Link
                 to={routes.upload}
                 className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-medium text-white"
               >
-                Upload customers
+                Upload Excel
               </Link>
             }
           />

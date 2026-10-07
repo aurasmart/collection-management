@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { FileSpreadsheet, Trash2, Upload } from 'lucide-react'
-import { Link } from 'react-router'
-import { Alert, Button, Card, Spinner } from '@/components/ui'
+import { Link, useBlocker } from 'react-router'
+import { Alert, Button, Card, ConfirmDialog, Spinner } from '@/components/ui'
 import {
   confirmImport,
   previewFile,
@@ -110,6 +110,19 @@ export function UploadPage() {
   const invalid = rows.filter((r) => r.errors.length > 0).length
   const canImport = rows.length > 0 && invalid === 0
 
+  // Rows that are being reviewed exist only in this browser tab until they are imported.
+  const unsaved = step.kind === 'review' || step.kind === 'saving'
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      unsaved && currentLocation.pathname !== nextLocation.pathname,
+  )
+  useEffect(() => {
+    if (!unsaved) return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [unsaved])
+
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">Upload customers</h1>
@@ -169,7 +182,7 @@ export function UploadPage() {
           </div>
           <a
             href={`${import.meta.env.BASE_URL}sample-customers.csv`}
-            className="text-accent hover:underline"
+            className="inline-flex min-h-11 items-center text-accent hover:underline"
             download
           >
             Download a sample CSV
@@ -228,6 +241,19 @@ export function UploadPage() {
           </ul>
         </>
       )}
+
+      <ConfirmDialog
+        open={blocker.state === 'blocked'}
+        onOpenChange={(o) => {
+          if (!o && blocker.state === 'blocked') blocker.reset()
+        }}
+        title="Leave without importing?"
+        description="These customers have not been saved yet. If you leave, you will need to upload the file again."
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        destructive
+        onConfirm={() => blocker.state === 'blocked' && blocker.proceed()}
+      />
 
       {step.kind === 'done' && (
         <Card className="flex flex-col items-start gap-4">

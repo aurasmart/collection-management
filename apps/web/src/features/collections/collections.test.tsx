@@ -64,7 +64,15 @@ describe('Collections list', () => {
         ]),
     })
     const table = await screen.findByRole('table', { name: 'Customers and what they owe' })
-    for (const h of ['Customer', 'Phone', 'Amount due', 'Due date', 'Status', 'Action']) {
+    for (const h of [
+      'Customer',
+      'Phone',
+      'Amount due',
+      'Due date',
+      'Reference',
+      'Status',
+      'Action',
+    ]) {
       expect(within(table).getByRole('columnheader', { name: h })).toBeInTheDocument()
     }
     const rows = within(table).getAllByRole('row').slice(1)
@@ -73,7 +81,12 @@ describe('Collections list', () => {
     expect(within(rows[0]!).getByText('15 Oct 2026')).toBeInTheDocument()
     expect(within(rows[0]!).getByText('Pending')).toBeInTheDocument()
     expect(within(rows[1]!).getByText('Paid')).toBeInTheDocument()
-    expect(within(rows[1]!).queryByRole('button', { name: /Mark/ })).not.toBeInTheDocument()
+    expect(within(rows[1]!).queryByRole('button', { name: /as paid/ })).not.toBeInTheDocument()
+    expect(
+      within(rows[1]!).getByRole('button', { name: 'Mark unpaid for Priya' }),
+    ).toBeInTheDocument()
+    expect(within(rows[0]!).getByText('+91 98765 43210')).toBeInTheDocument()
+    expect(within(rows[0]!).getByText('INV-1001')).toBeInTheDocument()
   })
 
   it('shows only Pending and Paid (no other statuses)', async () => {
@@ -109,8 +122,8 @@ describe('Collections list', () => {
 
   it('has friendly empty states', async () => {
     open('/collections', { 'GET /api/v1/collections': () => list([]) })
-    expect(await screen.findByText('No customers yet')).toBeInTheDocument()
-    expect(screen.getAllByRole('link', { name: 'Upload customers' }).length).toBeGreaterThan(0)
+    expect(await screen.findByText('No collections yet')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Upload Excel' })).toBeInTheDocument()
   })
 
   it('has an error state with Retry', async () => {
@@ -146,7 +159,7 @@ describe('Collections list', () => {
         return json(detail({ status: 'PAID' }))
       },
     })
-    await userEvent.click(await screen.findByRole('button', { name: 'Mark Rahul Sharma as paid' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark paid for Rahul Sharma' }))
     const dialog = await screen.findByRole('dialog', {
       name: 'Mark ₹15,000 as paid for Rahul Sharma?',
     })
@@ -155,16 +168,60 @@ describe('Collections list', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     const table = await screen.findByRole('table')
     expect(await within(table).findByText('Paid')).toBeInTheDocument()
-    expect(within(table).queryByRole('button', { name: /Mark/ })).not.toBeInTheDocument()
+    expect(within(table).queryByRole('button', { name: /as paid/ })).not.toBeInTheDocument()
+    expect(
+      within(table).getByRole('button', { name: 'Mark unpaid for Rahul Sharma' }),
+    ).toBeInTheDocument()
   })
 
   it('cancelling the confirmation changes nothing', async () => {
     const api = open('/collections', { 'GET /api/v1/collections': () => list([item()]) })
-    await userEvent.click(await screen.findByRole('button', { name: 'Mark Rahul Sharma as paid' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark paid for Rahul Sharma' }))
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }),
     )
     expect(api.called(`POST /api/v1/collections/${ID}/mark-paid`)).toHaveLength(0)
+  })
+})
+
+describe('Collections list extras', () => {
+  it('says so plainly when a search finds nobody', async () => {
+    open('/collections', { 'GET /api/v1/collections': () => list([]) })
+    await userEvent.type(await screen.findByLabelText('Search customers'), 'zzz')
+    expect(await screen.findByText('No customers match your search.')).toBeInTheDocument()
+  })
+
+  it('marks a paid customer unpaid from the list after confirming', async () => {
+    let status = 'PAID'
+    const api = open('/collections', {
+      'GET /api/v1/collections': () => list([item({ status })]),
+      [`POST /api/v1/collections/${ID}/mark-unpaid`]: () => {
+        status = 'PENDING'
+        return json(detail({ status: 'PENDING' }))
+      },
+    })
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Mark unpaid for Rahul Sharma' }),
+    )
+    const dialog = await screen.findByRole('dialog', { name: 'Mark Rahul Sharma as unpaid?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Mark as Unpaid' }))
+    expect(
+      await screen.findByRole('button', { name: 'Mark paid for Rahul Sharma' }),
+    ).toBeInTheDocument()
+    expect(api.called(`POST /api/v1/collections/${ID}/mark-unpaid`)).toHaveLength(1)
+  })
+
+  it('shows a readable error and keeps the dialog when marking paid fails', async () => {
+    open('/collections', {
+      'GET /api/v1/collections': () => list([item()]),
+      [`POST /api/v1/collections/${ID}/mark-paid`]: () => json({ detail: 'boom' }, 500),
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark paid for Rahul Sharma' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Mark as Paid' }))
+    expect(
+      await within(dialog).findByText("Couldn't update. Please try again."),
+    ).toBeInTheDocument()
   })
 })
 
@@ -175,7 +232,13 @@ describe('Customer detail', () => {
     open(page, { [`GET /api/v1/collections/${ID}`]: () => json(detail()) })
     expect(await screen.findByRole('heading', { name: 'Rahul Sharma' })).toBeInTheDocument()
     const card = screen.getByRole('region', { name: 'Customer details' })
-    for (const t of ['+919876543210', '₹15,000.00', 'INV-1001', '15 Oct 2026']) {
+    for (const t of [
+      '+91 98765 43210',
+      '₹15,000.00',
+      'INV-1001',
+      '15 Oct 2026',
+      'Not created yet',
+    ]) {
       expect(within(card).getByText(t)).toBeInTheDocument()
     }
     expect(screen.getByRole('button', { name: 'Generate Payment Page' })).toBeInTheDocument()
@@ -194,6 +257,8 @@ describe('Customer detail', () => {
       },
     })
     await userEvent.click(await screen.findByRole('button', { name: 'Generate Payment Page' }))
+    expect(await screen.findByText('Payment page generated')).toBeInTheDocument()
+    expect(screen.getByText('Created')).toBeInTheDocument()
     const link = `http://localhost:3000/#/pay/FAKE-test-token-0002`
     const input = await screen.findByLabelText('Link to send to the customer')
     expect((input as HTMLInputElement).value).toMatch(/\/#\/pay\/FAKE-test-token-0002$/)
@@ -229,14 +294,18 @@ describe('Customer detail', () => {
     expect(await screen.findByText('Link copied')).toBeInTheDocument()
   })
 
-  it('without a phone number, WhatsApp and SMS are not offered', async () => {
+  it('without a phone number, WhatsApp and SMS are disabled and the reason is explained', async () => {
     open(page, {
       [`GET /api/v1/collections/${ID}`]: () =>
         json(detail({ phone: null, payment_token: FAKE_TOKEN, has_payment_page: true })),
     })
     await screen.findByRole('button', { name: 'Copy Link' })
     expect(screen.queryByRole('link', { name: 'Send on WhatsApp' })).not.toBeInTheDocument()
-    expect(screen.getByText(/Add a phone number/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send on WhatsApp' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send SMS' })).toBeDisabled()
+    expect(
+      screen.getByText(/no phone number, so WhatsApp and SMS are unavailable/),
+    ).toBeInTheDocument()
   })
 
   it('Mark as Paid asks first, then the customer becomes Paid and can be marked Unpaid', async () => {
@@ -306,6 +375,7 @@ describe('Customer detail', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(await screen.findByRole('heading', { name: 'Rahul S.' })).toBeInTheDocument()
+    expect(await screen.findByText('Customer saved')).toBeInTheDocument()
   })
 
   it('shows "not found" for an unknown or foreign customer', async () => {

@@ -53,7 +53,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 </RadixToast.Description>
               )}
             </div>
-            <RadixToast.Close aria-label="Dismiss" className="grid size-8 place-items-center">
+            <RadixToast.Close
+              aria-label="Dismiss"
+              className="grid size-11 shrink-0 place-items-center rounded-control hover:bg-neutral-soft"
+            >
               <X className="size-4" aria-hidden="true" />
             </RadixToast.Close>
           </RadixToast.Root>

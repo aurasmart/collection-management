@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Button, Modal, TextField } from '@/components/ui'
+import { Alert, Button, Modal, TextField, useToast } from '@/components/ui'
 import { useEditCollection, type CollectionDetail } from '@/features/collections/api'
 
 const iso = (d: string | null) => {
@@ -30,6 +30,7 @@ function EditForm({
   onOpenChange: (open: boolean) => void
 }) {
   const edit = useEditCollection(customer.id)
+  const { toast } = useToast()
   const [values, setValues] = useState<Record<Fields, string>>({
     customer_name: customer.customer_name,
     phone: customer.phone ?? '',
@@ -64,6 +65,7 @@ function EditForm({
     setSaving(false)
     if (result.ok) {
       onOpenChange(false)
+      toast({ title: 'Customer saved', tone: 'success' })
       return
     }
     const next: Partial<Record<Fields, string>> = {}

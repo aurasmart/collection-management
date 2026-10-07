@@ -11,12 +11,10 @@ export function AccountMenu() {
 
   return (
     <Menu.Root>
-      <Menu.Trigger
-        aria-label="Account menu"
-        className="inline-flex min-h-11 items-center gap-2 rounded-control px-2 hover:bg-neutral-soft"
-      >
+      <Menu.Trigger className="inline-flex min-h-11 items-center gap-2 rounded-control px-2 hover:bg-neutral-soft">
         <UserRound className="size-5" aria-hidden="true" />
-        <span className="hidden max-w-[16rem] truncate sm:inline">{email}</span>
+        <span className="max-w-[16rem] truncate max-sm:sr-only">{email}</span>
+        <span className="sr-only">, account menu</span>
         <ChevronDown className="size-4" aria-hidden="true" />
       </Menu.Trigger>
       <Menu.Portal>

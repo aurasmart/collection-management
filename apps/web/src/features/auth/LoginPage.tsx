@@ -93,7 +93,7 @@ export function LoginPage() {
         </Button>
         <Link
           to={routes.forgotPassword}
-          className="text-center font-medium text-accent hover:underline"
+          className="inline-flex min-h-11 items-center justify-center font-medium text-accent hover:underline"
         >
           Forgot password?
         </Link>

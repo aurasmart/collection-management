@@ -59,6 +59,8 @@ def parse_amount(v: Any) -> tuple[str, str | None]:
     cleaned = re.sub(r"(?i)(₹|rs\.?|inr|/-|,|\s)", "", raw)
     if not cleaned:
         return raw, "Enter the amount due"
+    if cleaned.startswith("-") or (cleaned.startswith("(") and cleaned.endswith(")")):
+        return raw, "Amount must be greater than 0"
     if not re.fullmatch(r"\d+(\.\d+)?", cleaned):
         return raw, "Amount isn't a valid number"
     try:

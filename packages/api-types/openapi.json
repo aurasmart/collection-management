@@ -1672,9 +1672,6 @@
             "name": "token",
             "required": true,
             "schema": {
-              "maxLength": 64,
-              "minLength": 10,
-              "pattern": "^[A-Za-z0-9_-]+$",
               "title": "Token",
               "type": "string"
             }
@@ -1717,9 +1714,6 @@
             "name": "token",
             "required": true,
             "schema": {
-              "maxLength": 64,
-              "minLength": 10,
-              "pattern": "^[A-Za-z0-9_-]+$",
               "title": "Token",
               "type": "string"
             }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { components } from '@collections/api-types'
 import { Check, Copy } from 'lucide-react'
@@ -26,6 +26,14 @@ export function PayPage() {
       return data
     },
   })
+
+  const company = query.data?.company_name
+  useEffect(() => {
+    document.title = company ? `Payment request — ${company}` : 'Payment request'
+    return () => {
+      document.title = 'Collections'
+    }
+  }, [company])
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col gap-4 px-4 py-6">
@@ -62,7 +70,7 @@ function Unavailable({ status, onRetry }: { status?: number; onRetry: () => void
   if (status === 404) {
     return (
       <div className="rounded-card border border-line bg-surface p-6 text-center">
-        <h1 className="text-xl font-semibold">This link isn't valid</h1>
+        <h1 className="text-xl font-semibold">This payment page is unavailable.</h1>
         <p className="mt-2 text-ink-2">
           Please check the link, or contact the person who sent it to you.
         </p>

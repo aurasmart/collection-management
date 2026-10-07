@@ -209,4 +209,21 @@ describe('review and confirm', () => {
     expect(api.called('POST /api/v1/imports/confirm')).toHaveLength(0)
     expect(screen.getByRole('button', { name: 'Import 1 customer' })).toBeDisabled()
   })
+
+  it('asks before leaving a review that has not been imported, and Stay keeps the rows', async () => {
+    await openUpload({ 'POST /api/v1/imports/preview': () => json(preview([row(2)])) })
+    await choose(file())
+    await screen.findByText('1 customer found · all ready')
+    await userEvent.click(screen.getByRole('link', { name: 'Collections' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Leave without importing?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByLabelText('Customer, row 1')).toBeInTheDocument()
+  })
+
+  it('does not interrupt leaving before anything was uploaded', async () => {
+    await openUpload({})
+    await userEvent.click(screen.getByRole('link', { name: 'Collections' }))
+    expect(await screen.findByRole('heading', { name: 'Collections' })).toBeInTheDocument()
+  })
 })

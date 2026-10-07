@@ -140,7 +140,7 @@ export function ResetPasswordPage() {
           </Alert>
           <Link
             to={routes.forgotPassword}
-            className="text-center font-medium text-accent hover:underline"
+            className="inline-flex min-h-11 items-center justify-center font-medium text-accent hover:underline"
           >
             Request a new link
           </Link>

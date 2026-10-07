@@ -126,7 +126,7 @@ describe('customer payment page', () => {
   it('an invalid link says so without revealing anything', async () => {
     open({ [KEY]: () => json({ detail: "This link isn't valid." }, 404) })
     expect(
-      await screen.findByRole('heading', { name: "This link isn't valid" }),
+      await screen.findByRole('heading', { name: 'This payment page is unavailable.' }),
     ).toBeInTheDocument()
   })
 
@@ -142,5 +142,11 @@ describe('customer payment page', () => {
     fail = false
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(await screen.findByText('Acme Traders')).toBeInTheDocument()
+  })
+
+  it('titles the browser tab with the company name', async () => {
+    open({ [KEY]: () => json(full) })
+    await screen.findByText('Acme Traders')
+    expect(document.title).toBe('Payment request — Acme Traders')
   })
 })

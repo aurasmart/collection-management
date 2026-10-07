@@ -218,10 +218,12 @@ def test_unknown_or_malformed_tokens_all_get_the_same_not_found(
     client: TestClient, token: str
 ) -> None:
     r = client.get(f"/api/v1/public/pay/{token}")
-    assert r.status_code in (404, 422)
-    assert client.get(f"/api/v1/public/pay/{'a' * 22}").json() == {
-        "detail": "This link isn't valid."
-    }
+    assert r.status_code == 404  # never a validation error that reveals the token format
+    if "/" not in token:  # a path with slashes never reaches the page route at all (plain 404)
+        assert r.json() == {"detail": "This payment page is unavailable."}
+    assert client.get(f"/api/v1/public/pay/{token}/qr").status_code == 404
+    unknown = client.get(f"/api/v1/public/pay/{'a' * 22}")
+    assert unknown.json() == {"detail": "This payment page is unavailable."}
 
 
 def test_a_cancelled_customer_is_not_found(

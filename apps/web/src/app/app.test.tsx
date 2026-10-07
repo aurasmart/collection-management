@@ -48,7 +48,7 @@ describe('App shell (signed in)', () => {
     expect(screen.getByRole('main')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
     expect(await screen.findByTitle('Workspace')).toHaveTextContent('Acme Traders')
-    expect(screen.getByRole('button', { name: 'Account menu' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /account menu/i })).toBeInTheDocument()
   })
 
   it('marks the active section', async () => {
@@ -75,7 +75,7 @@ describe('Public payment route', () => {
     mockApi({ 'GET /api/v1/public/pay/some-token-0123': () => json({ detail: 'no' }, 404) })
     renderApp('/pay/some-token-0123')
     expect(
-      await screen.findByRole('heading', { name: "This link isn't valid" }),
+      await screen.findByRole('heading', { name: 'This payment page is unavailable.' }),
     ).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()

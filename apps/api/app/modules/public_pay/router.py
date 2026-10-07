@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import text
 
@@ -19,8 +19,10 @@ from app.core.ratelimit import client_ip, public_miss_limiter, public_page_limit
 from app.storage.base import StorageService, get_storage
 
 router = APIRouter(prefix="/api/v1/public/pay", tags=["public"])
-TokenPath = Annotated[str, Path(min_length=10, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
-_NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This link isn't valid.")
+_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{10,64}$")
+_NOT_FOUND = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND, detail="This payment page is unavailable."
+)
 
 
 class BankDetails(BaseModel):
@@ -50,10 +52,12 @@ def _lookup(token: str, request: Request) -> Any:
     ip = client_ip(request)
     if (wait := public_page_limiter.check(ip)) is not None:
         raise too_many(wait)
-    with get_engine().connect() as conn:
-        row = conn.execute(
-            text("SELECT * FROM public_payment_page(:t)"), {"t": token}
-        ).one_or_none()
+    row = None
+    if _TOKEN_RE.match(token):  # anything else is simply "unavailable", never a validation error
+        with get_engine().connect() as conn:
+            row = conn.execute(
+                text("SELECT * FROM public_payment_page(:t)"), {"t": token}
+            ).one_or_none()
     if row is None or row.status not in ("PENDING", "PAID"):
         # Guessing tokens is the only reason to miss, so misses are limited much harder.
         if (wait := public_miss_limiter.check(ip)) is not None:
@@ -63,7 +67,7 @@ def _lookup(token: str, request: Request) -> Any:
 
 
 @router.get("/{token}", operation_id="getPublicPaymentPage", summary="What the customer sees")
-def get_public_page(token: TokenPath, request: Request, response: Response) -> PublicPage:
+def get_public_page(token: str, request: Request, response: Response) -> PublicPage:
     response.headers.update(_NO_STORE)
     row = _lookup(token, request)
     if row.status == "PAID":
@@ -101,7 +105,7 @@ def get_public_page(token: TokenPath, request: Request, response: Response) -> P
     responses={200: {"content": {"image/png": {}}}, 404: {"description": "No QR"}},
 )
 def get_public_qr(
-    token: TokenPath,
+    token: str,
     request: Request,
     storage: Annotated[StorageService, Depends(get_storage)],
     app_settings: Annotated[Settings, Depends(get_settings)],

@@ -101,6 +101,11 @@ def test_bad_dates_are_rejected(raw: Any) -> None:
     assert parse_due_date(raw)[1]
 
 
+@pytest.mark.parametrize("raw", ["-5", "-1,000", "(500)", -250, "₹-100"])
+def test_negative_amounts_say_must_be_greater_than_zero(raw: Any) -> None:
+    assert parse_amount(raw)[1] == "Amount must be greater than 0"
+
+
 def test_names_and_references() -> None:
     assert parse_name("  Rahul   Sharma ") == ("Rahul Sharma", None)
     assert parse_name("")[1] and parse_name(None)[1]
