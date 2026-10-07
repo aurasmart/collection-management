@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from decimal import Decimal
 from difflib import SequenceMatcher
 from typing import Any, Literal
 
@@ -24,8 +25,8 @@ from app.modules.imports.model import (
     Sheet,
 )
 from app.modules.imports.readers import cell_text
+from app.modules.imports.structure import Table, fallback_table, find_tables, manual_table
 
-HEADER_SCAN_ROWS = 10
 SAMPLE_VALUES = 200
 Confidence = Literal["high", "uncertain", "none"]
 
@@ -33,7 +34,8 @@ ALIASES: dict[Field, tuple[str, ...]] = {
     "customer_name": (
         "customer", "customer name", "party", "party name", "client", "client name", "account",
         "account name", "company", "company name", "name", "customer/party", "customer party",
-        "buyer", "buyer name", "debtor", "debtor name", "ledger", "ledger name",
+        "buyer", "buyer name", "debtor", "debtor name", "ledger", "ledger name", "particulars",
+        "party particulars", "name of party", "name of customer",
     ),
     "phone": (
         "phone", "phone number", "phone no", "phone no.", "mobile", "mobile number", "mobile no",
@@ -203,40 +205,29 @@ def candidate_score(header: str, sig: Signals, fld: Field) -> float:
     return 0.0
 
 
-# ---------------------------------------------------------------- header row + columns
-def header_row_index(rows: list[list[Any]]) -> int | None:
-    """0-based header row among the first rows, or None when the sheet has no header."""
-    best_i, best_hits = None, 0
-    for i, row in enumerate(rows[:HEADER_SCAN_ROWS]):
-        texts = [cell_text(c) for c in row]
-        hits = sum(
-            1
-            for t in texts
-            if t
-            and not re.fullmatch(r"[\d.,]+", t)
-            and max(header_score(t, f) for f in FIELDS) >= 0.75
-        )
-        if hits > best_hits:
-            best_i, best_hits = i, hits
-    if best_i is not None and best_hits >= 2:
-        return best_i
-    if best_i is not None and best_hits == 1:
-        row = [cell_text(c) for c in rows[best_i]]
-        if sum(1 for t in row if t) >= 2 and best_i + 1 < len(rows):
-            return best_i
-    # No known names: a row of short text cells followed by a row with numbers looks like a header.
-    for i, row in enumerate(rows[:HEADER_SCAN_ROWS]):
-        texts = [cell_text(c) for c in row]
-        filled = [t for t in texts if t]
-        if (
-            len(filled) >= 2
-            and all(not re.search(r"\d{3,}", t) for t in filled)
-            and i + 1 < len(rows)
-        ):
-            nxt = [cell_text(c) for c in rows[i + 1]]
-            if sum(1 for t in nxt if t) >= 2:
-                return i
-    return None
+# ---------------------------------------------------------------- accounting vocabulary
+# Debit/Credit columns are the two SIDES of a balance. Neither is "the amount due" by name: which
+# side is money owed to the employer depends on the report, so the employer decides.
+SIDE_TERMS = {
+    "debit",
+    "credit",
+    "dr",
+    "cr",
+    "debit amount",
+    "credit amount",
+    "debit balance",
+    "credit balance",
+}
+LEDGER_DUPLICATE_RATIO = 0.2
+
+
+def looks_like_heading(text: str) -> bool:
+    t = text.strip()
+    return (
+        bool(t)
+        and not re.fullmatch(r"[\d.,]+", t)
+        and (max(header_score(t, f) for f in FIELDS) >= 0.75 or t.lower() in SIDE_TERMS)
+    )
 
 
 def column_label(index: int) -> str:
@@ -264,6 +255,8 @@ class ColumnInfo:
     confidence: Confidence = "none"
     alternatives: list[Field] = field(default_factory=list)
     date_info: DateInfo | None = None
+    count: int = 0  # how many records have an amount in this column
+    total: str | None = None  # their sum (for choosing between Debit and Credit)
 
 
 @dataclass
@@ -275,12 +268,31 @@ class FieldStatus:
 
 
 @dataclass
+class TableSummary:
+    index: int
+    title: str
+    header_rows: list[int]  # 0-based
+    first_row: int
+    last_row: int
+    records: int
+
+
+@dataclass
 class SheetAnalysis:
-    header_row: int | None  # 0-based; None = no header row
+    table: Table | None
+    table_index: int | None
+    tables: list[TableSummary]
+    structure: Literal["high", "low"]
     columns: list[ColumnInfo]
     fields: list[FieldStatus]
     data_rows: int
     notes: list[str]
+    amount_alternatives: list[int] = field(default_factory=list)
+
+    @property
+    def header_row(self) -> int | None:
+        """0-based row of the lowest heading line, or None when the table has no headings."""
+        return self.table.header_rows[-1] if self.table and self.table.header_rows else None
 
     @property
     def mapping(self) -> dict[Field, int | None]:
@@ -323,21 +335,97 @@ def _date_info(values: list[Any]) -> DateInfo | None:
     return DateInfo(bool(ambiguous), "dmy", ambiguous[:3])
 
 
-def analyze_sheet(sheet: Sheet, header_row: int | None | Literal["auto"] = "auto") -> SheetAnalysis:
+def _label(f: Field) -> str:
+    from app.modules.imports.model import LABELS
+
+    return LABELS[f]
+
+
+def _is_total(label: str) -> bool:
+    return bool(_TOTAL_RE.match(label))
+
+
+_TOTAL_RE = re.compile(
+    r"^(grand\s*total|sub\s*total|total|totals|net\s*total|summary|total\s+outstanding|"
+    r"total\s+due|total\s+amount|closing\s+balance|opening\s+balance|balance\s+c/?f|carried\s+forward|"
+    r"brought\s+forward|page\s+total)\b",
+    re.I,
+)
+
+
+def _summaries(sheet: Sheet, tables: list[Table]) -> list[TableSummary]:
+    out = []
+    for i, t in enumerate(tables):
+        records = sum(
+            1
+            for r in t.data_rows
+            if not _is_total(
+                cell_text(sheet.rows[r][t.key_col]) if t.key_col < len(sheet.rows[r]) else ""
+            )
+        )
+        out.append(TableSummary(i, t.title, t.header_rows, t.first_row, t.last_row, records))
+    return out
+
+
+def _table_score(sheet: Sheet, t: Table) -> int:
+    hits = sum(1 for h in t.leaf if h and looks_like_heading(h))
+    return hits * 1000 + len(t.data_rows)
+
+
+def candidate_tables(sheet: Sheet, header_row: int | None | Literal["auto"]) -> list[Table]:
+    if header_row != "auto":
+        return [manual_table(sheet, header_row)]
+    tables = find_tables(sheet)
+    if not tables:
+        fb = fallback_table(sheet, looks_like_heading)
+        tables = [fb] if fb else []
+    big = [t for t in tables if len(t.data_rows) >= 2]  # a lone stray line is not a table
+    return big or tables
+
+
+NO_TABLE = "We couldn't confidently identify the table structure."
+
+
+def analyze_sheet(
+    sheet: Sheet,
+    header_row: int | None | Literal["auto"] = "auto",
+    table_index: int | None = None,
+) -> SheetAnalysis:
+    tables = candidate_tables(sheet, header_row)
+    tables = [t for t in tables if t.data_rows]
+    if not tables:
+        fields = [FieldStatus(f, "missing", None) for f in FIELDS]
+        return SheetAnalysis(None, None, [], "low", [], fields, 0, [NO_TABLE])
+    chosen = (
+        table_index
+        if table_index is not None and 0 <= table_index < len(tables)
+        else max(range(len(tables)), key=lambda i: _table_score(sheet, tables[i]))
+    )
+    table = tables[chosen]
+    a = _analyze_table(sheet, table)
+    a.table_index = chosen
+    a.tables = _summaries(sheet, tables)
+    if len(tables) > 1:
+        a.notes.insert(
+            0, f"We found {len(tables)} tables on this sheet. Choose the one with your customers."
+        )
+    return a
+
+
+def _analyze_table(sheet: Sheet, table: Table) -> SheetAnalysis:
     rows = sheet.rows
-    h = header_row_index(rows) if header_row == "auto" else header_row
-    first_data = (h + 1) if h is not None else 0
     width = min(max((len(r) for r in rows), default=0), MAX_COLUMNS)
-    data = rows[first_data:]
-    cols_values = [[(r[i] if i < len(r) else None) for r in data] for i in range(width)]
-    headers = [
-        (cell_text(rows[h][i]) if h is not None and i < len(rows[h]) else "") or column_label(i)
-        for i in range(width)
+    has_headings = bool(table.header_rows)
+    cols_values = [
+        [(rows[r][i] if i < len(rows[r]) else None) for r in table.data_rows] for i in range(width)
     ]
-    # Drop columns that are empty both in the header and in the data.
+    leaf = [table.leaf[i] if i < len(table.leaf) else "" for i in range(width)]
+    context = [table.context[i] if i < len(table.context) else "" for i in range(width)]
+    signals = [column_signals(v) for v in cols_values]
+
+    keep = [i for i in range(width) if leaf[i] or signals[i].n]
     columns: list[ColumnInfo] = []
-    signals: list[Signals] = []
-    for i in range(width):
+    for i in keep:
         samples: list[str] = []
         for v in cols_values[i]:
             t = cell_text(v)
@@ -345,13 +433,30 @@ def analyze_sheet(sheet: Sheet, header_row: int | None | Literal["auto"] = "auto
                 samples.append(t[:40])
             if len(samples) == 3:
                 break
-        columns.append(ColumnInfo(i, headers[i], samples, date_info=_date_info(cols_values[i])))
-        signals.append(column_signals(cols_values[i]))
+        shown = (
+            f"{context[i]} – {leaf[i]}" if context[i] and leaf[i] else leaf[i] or column_label(i)
+        )
+        columns.append(ColumnInfo(i, shown, samples, date_info=_date_info(cols_values[i])))
+    by_index = {c.index: c for c in columns}
+    records_idx = [
+        r
+        for r in table.data_rows
+        if not _is_total(cell_text(rows[r][table.key_col]) if table.key_col < len(rows[r]) else "")
+    ]
+    for i in keep:
+        amounts = [
+            parse_amount(rows[r][i])[0]
+            for r in records_idx
+            if i < len(rows[r]) and cell_text(rows[r][i]) and parse_amount(rows[r][i])[1] is None
+        ]
+        if amounts:
+            by_index[i].count = len(amounts)
+            by_index[i].total = format(sum((Decimal(a) for a in amounts), Decimal(0)), "f")
 
     scores: dict[tuple[int, Field], float] = {}
-    for i in range(width):
+    for i in keep:
         for f in FIELDS:
-            s = candidate_score(headers[i] if h is not None else "", signals[i], f)
+            s = candidate_score(leaf[i] if has_headings else "", signals[i], f)
             if s >= 0.45:
                 scores[(i, f)] = s
     order = {f: n for n, f in enumerate(FIELDS)}
@@ -363,9 +468,46 @@ def analyze_sheet(sheet: Sheet, header_row: int | None | Literal["auto"] = "auto
         assigned_col[f] = i
         used.add(i)
 
+    notes: list[str] = []
+    sides = [i for i in keep if leaf[i].strip().lower() in SIDE_TERMS and signals[i].amount >= 0.7]
+    dated = any(by_index[i].date_info for i in keep)
+    key_values = [
+        cell_text(rows[r][table.key_col]) for r in table.data_rows if table.key_col < len(rows[r])
+    ]
+    key_values = [v.lower() for v in key_values if v and not _is_total(v)]
+    repeated = (
+        bool(key_values) and 1 - len(set(key_values)) / len(key_values) >= LEDGER_DUPLICATE_RATIO
+    )
+    ledger = dated and repeated
+    force_choose: list[int] = []
+    amount_col = assigned_col.get("amount_due")
+    if ledger:
+        notes.append(
+            "This appears to be a ledger/transaction report. We need to determine which column "
+            "represents the customer's outstanding balance. Choose it below; we never add up "
+            "transactions for you."
+        )
+        force_choose = [i for i in keep if signals[i].amount >= 0.7 and i not in (table.key_col,)]
+    elif len(sides) >= 2 and (amount_col is None or amount_col in sides):
+        names = " and ".join(f'"{by_index[i].header}"' for i in sides[:2])
+        notes.append(
+            f"This looks like an accounting summary with {names} columns. We can't tell which one "
+            "holds the amount your customers owe you, so please choose. (In most accounting "
+            "reports "
+            "money owed to you is on the Debit side.) Parties whose balance is on the other side "
+            "are skipped and listed."
+        )
+        force_choose = sides
+    if force_choose:
+        assigned_col.pop("amount_due", None)
+        used = set(assigned_col.values())
+
     statuses: list[FieldStatus] = []
     for f in FIELDS:
         col = assigned_col.get(f)
+        if f == "amount_due" and force_choose:
+            statuses.append(FieldStatus(f, "uncertain", None, sorted(force_choose)))
+            continue
         if col is None:
             statuses.append(FieldStatus(f, "missing", None))
             continue
@@ -379,26 +521,29 @@ def analyze_sheet(sheet: Sheet, header_row: int | None | Literal["auto"] = "auto
         statuses.append(
             FieldStatus(f, "detected" if confident else "uncertain", col, sorted(competing))
         )
-        columns[col].suggested = f
-        columns[col].confidence = "high" if confident else "uncertain"
+        by_index[col].suggested = f
+        by_index[col].confidence = "high" if confident else "uncertain"
     for (i, f), s in scores.items():
-        if s >= 0.45:
-            columns[i].alternatives.append(f)
-
-    notes: list[str] = []
+        if s >= 0.45 and i in by_index:
+            by_index[i].alternatives.append(f)
     for st in statuses:
-        if st.status == "uncertain" and st.competing:
-            names = ", ".join(f'"{headers[c]}"' for c in [st.column or 0, *st.competing])
+        if st.status == "uncertain" and st.competing and st.column is not None:
+            names = ", ".join(f'"{by_index[c].header}"' for c in [st.column, *st.competing])
             notes.append(
                 f"Several columns could be the {_label(st.name)}: {names}. Please choose one."
             )
-    return SheetAnalysis(h, columns, statuses, len(data), notes)
 
-
-def _label(f: Field) -> str:
-    from app.modules.imports.model import LABELS
-
-    return LABELS[f]
+    alternatives = sorted(
+        set(force_choose) | {i for (i, f) in scores if f == "amount_due" and scores[(i, f)] >= 0.6}
+    )
+    records = sum(1 for v in key_values)
+    named = any(st.status != "missing" for st in statuses if st.name in REQUIRED)
+    structure: Literal["high", "low"] = "high" if has_headings or named else "low"
+    if structure == "low":
+        notes.append(NO_TABLE + " Check the rows below, or choose where the headings are.")
+    return SheetAnalysis(
+        table, None, [], structure, columns, statuses, records, notes, alternatives
+    )
 
 
 def best_sheet(sheets: list[Sheet]) -> int:
@@ -411,14 +556,6 @@ def best_sheet(sheets: list[Sheet]) -> int:
 
 
 # ---------------------------------------------------------------- applying a mapping
-_TOTAL_RE = re.compile(
-    r"^(grand\s*total|sub\s*total|total|totals|net\s*total|summary|total\s+outstanding|"
-    r"total\s+due|total\s+amount|closing\s+balance|balance\s+c/?f|carried\s+forward|"
-    r"brought\s+forward|page\s+total)\b",
-    re.I,
-)
-
-
 @dataclass
 class Skipped:
     row_number: int
@@ -432,42 +569,54 @@ class BuiltRows:
     blank: int
 
 
-def build_rows(sheet: Sheet, header_row: int | None, mapping: dict[Field, int | None]) -> BuiltRows:
-    """Apply the confirmed mapping. Totals, repeated headers and blank lines are not customers."""
+def build_rows(
+    sheet: Sheet, analysis: SheetAnalysis, mapping: dict[Field, int | None]
+) -> BuiltRows:
+    """Apply the confirmed mapping. Totals and repeated headings are not customers."""
+    table = analysis.table
+    if table is None:
+        return BuiltRows([], [], 0)
     rows = sheet.rows
-    start = (header_row + 1) if header_row is not None else 0
-    header_cells = (
-        [_compact(cell_text(c)) for c in rows[header_row]] if header_row is not None else []
-    )
+    heading = [_compact(h) for h in table.leaf]
+    amount_col = mapping.get("amount_due")
+    others = [c for c in analysis.amount_alternatives if c != amount_col]
+    by_index = {c.index: c.header for c in analysis.columns}
     built: list[dict[str, Any]] = []
-    skipped: list[Skipped] = []
-    blank = 0
-    for offset, row in enumerate(rows[start:], start=start + 1):
+    skipped = [Skipped(r + 1, why) for r, why in table.skipped]
+    for r in table.data_rows:
+        row = rows[r]
         cells = [cell_text(c) for c in row]
-        if not any(cells):
-            blank += 1
-            continue
         values: dict[str, Any] = {}
         for f, col in mapping.items():
             values[f] = row[col] if col is not None and col < len(row) else None
-        if header_cells and sum(
-            1
-            for a, b in zip(header_cells, (_compact(c) for c in cells), strict=False)
-            if a and a == b
-        ) >= max(2, sum(1 for a in header_cells if a) // 2):
-            skipped.append(Skipped(offset, "Repeated header row"))
+        if table.header_rows and sum(
+            1 for a, b in zip(heading, (_compact(c) for c in cells), strict=False) if a and a == b
+        ) >= max(2, sum(1 for a in heading if a) // 2):
+            skipped.append(Skipped(r + 1, "Repeated heading"))
             continue
         label = cell_text(values.get("customer_name")) or next((c for c in cells if c), "")
-        if _TOTAL_RE.match(label):
-            skipped.append(Skipped(offset, "Total or summary row"))
+        if _is_total(label):
+            skipped.append(Skipped(r + 1, "Total or summary row"))
             continue
+        if amount_col is not None and not cell_text(values.get("amount_due")):
+            other = next((c for c in others if c < len(row) and cell_text(row[c])), None)
+            if other is not None:
+                skipped.append(
+                    Skipped(
+                        r + 1,
+                        f'The balance is in "{by_index.get(other, "another column")}", '
+                        f'not "{by_index.get(amount_col, "the chosen column")}"',
+                    )
+                )
+                continue
         if not any(cell_text(v) for v in values.values()):
-            skipped.append(Skipped(offset, "Row has none of the mapped columns"))
+            skipped.append(Skipped(r + 1, "Row has none of the mapped columns"))
             continue
-        values["row_number"] = offset
+        values["row_number"] = r + 1
         built.append(values)
         if len(built) > MAX_ROWS:
             raise ImportFileError(
                 f"This file has more than {MAX_ROWS} rows. Split it and upload in parts."
             )
-    return BuiltRows(built, skipped, blank)
+    skipped.sort(key=lambda s: s.row_number)
+    return BuiltRows(built, skipped, 0)

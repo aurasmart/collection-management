@@ -3,6 +3,7 @@ import { cn } from '@/lib/cn'
 import { AccountMenu } from '@/app/shell/AccountMenu'
 import { NAV_ITEMS } from '@/app/shell/nav'
 import { useMe } from '@/features/auth/useMe'
+import { useCompanyProfile } from '@/features/settings/companyApi'
 
 /**
  * Responsive shell (Stage 2 §1/§25), one <nav> whose layout changes by breakpoint:
@@ -12,6 +13,9 @@ import { useMe } from '@/features/auth/useMe'
  */
 export function AppShell() {
   const me = useMe()
+  const company = useCompanyProfile()
+  // The company name set in Settings wins; the account name is only the fallback.
+  const workspace = company.data?.display_name ?? me.data?.name
   return (
     <div className="min-h-dvh">
       <a
@@ -28,9 +32,9 @@ export function AppShell() {
 
       <header className="sticky top-0 z-30 flex h-14 items-center border-b border-line bg-surface px-4 sm:pl-[calc(72px+1rem)] lg:pl-[calc(15rem+1.5rem)]">
         <span className="text-lg font-semibold">Collections</span>
-        {me.data && (
+        {workspace && (
           <span className="ml-3 hidden truncate text-ink-2 sm:inline" title="Workspace">
-            {me.data.name}
+            {workspace}
           </span>
         )}
         <div className="ml-auto">

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { FileSpreadsheet, Sheet, Upload } from 'lucide-react'
 import { Link, useBlocker } from 'react-router'
 import { Alert, Badge, Button, Card, ConfirmDialog, Spinner } from '@/components/ui'
@@ -30,6 +31,7 @@ type Step =
   | { kind: 'done'; imported: number }
 
 export function UploadPage() {
+  const qc = useQueryClient()
   const [step, setStep] = useState<Step>({ kind: 'choose' })
   const [source, setSource] = useState<Source | null>(null)
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
@@ -37,6 +39,7 @@ export function UploadPage() {
   const [rows, setRows] = useState<ImportRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [dragging, setDragging] = useState(false)
+  const [manualHeader, setManualHeader] = useState<number | null>(null)
   const [sheetForm, setSheetForm] = useState(false)
   const [sheetUrl, setSheetUrl] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -49,10 +52,14 @@ export function UploadPage() {
     setError(null)
     setSheetForm(false)
     setSheetUrl('')
+    setManualHeader(null)
     setStep({ kind: 'choose' })
   }
 
-  async function analyze(next: Source, opts: { sheet?: number; headerRow?: number } = {}) {
+  async function analyze(
+    next: Source,
+    opts: { sheet?: number; headerRow?: number; table?: number } = {},
+  ) {
     setError(null)
     const result = await analyzeSource(next, opts)
     if (!result.ok) {
@@ -93,18 +100,28 @@ export function UploadPage() {
       return
     }
     setAnalysis(null)
+    setManualHeader(null)
     setStep({ kind: 'reading', what: 'Reading your Google Sheet…' })
     await analyze({ kind: 'sheet', url })
   }
 
   async function changeSheet(sheet: number) {
     if (!source) return
+    setManualHeader(null)
     setStep({ kind: 'mapping', busy: true })
     await analyze(source, { sheet })
   }
 
+  async function changeTable(table: number) {
+    if (!source || !analysis) return
+    setManualHeader(null)
+    setStep({ kind: 'mapping', busy: true })
+    await analyze(source, { sheet: analysis.sheet, table })
+  }
+
   async function changeHeaderRow(headerRow: number) {
     if (!source || !analysis) return
+    setManualHeader(headerRow)
     setStep({ kind: 'mapping', busy: true })
     await analyze(source, { sheet: analysis.sheet, headerRow })
   }
@@ -115,7 +132,8 @@ export function UploadPage() {
     setStep({ kind: 'mapping', busy: true })
     const result = await previewSource(source, {
       sheet: analysis.sheet,
-      headerRow: analysis.header_row,
+      headerRow: manualHeader,
+      table: manualHeader === null ? analysis.table : null,
       mapping: next.mapping,
       dateOrder: next.dateOrder,
     })
@@ -162,6 +180,9 @@ export function UploadPage() {
     }
     const result = await confirmImport(preview.filename, preview.source, checked.data)
     if (result.ok) {
+      // The dashboard and the collections list were loaded before these customers existed.
+      void qc.invalidateQueries({ queryKey: ['collections'] })
+      void qc.invalidateQueries({ queryKey: ['dashboard'] })
       setStep({ kind: 'done', imported: result.data.imported })
       return
     }
@@ -272,11 +293,12 @@ export function UploadPage() {
 
       {step.kind === 'mapping' && analysis && (
         <MappingStep
-          key={`${analysis.sheet}-${analysis.header_row}-${analysis.filename}`}
+          key={`${analysis.sheet}-${analysis.table}-${analysis.header_row}-${analysis.filename}`}
           analysis={analysis}
           busy={step.busy}
           onChangeSheet={(s) => void changeSheet(s)}
           onChangeHeaderRow={(r) => void changeHeaderRow(r)}
+          onChangeTable={(t) => void changeTable(t)}
           onBack={reset}
           onContinue={(c) => void toReview(c)}
         />

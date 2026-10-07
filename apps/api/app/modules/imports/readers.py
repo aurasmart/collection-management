@@ -28,8 +28,19 @@ _OLE_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 _SUPPORTED = "We can read Excel (.xlsx, .xls), CSV and PDF files. Please upload one of those."
 
 
+_XML_ESCAPE = re.compile(r"_x([0-9A-Fa-f]{4})_")
+
+
+def _unescape(v: Any) -> Any:
+    """Excel stores some characters in text as `_x000D_` (a line break); show the real character."""
+    if isinstance(v, str) and "_x" in v:
+        return _XML_ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), v)
+    return v
+
+
 def _trim(rows: list[list[Any]]) -> list[list[Any]]:
     """Drop trailing empty columns/rows and cap the width."""
+    rows = [[_unescape(c) for c in r] for r in rows]
     width = 0
     for r in rows:
         for i in range(len(r) - 1, -1, -1):
@@ -73,13 +84,25 @@ def read_xlsx(data: bytes) -> Workbook:
             "Spreadsheets with macros aren't supported. Save a copy as .xlsx without macros."
         )
     sheets: list[Sheet] = []
+    # Merged cells (report titles, grouped headings) are only visible when the whole workbook is
+    # loaded, so do that for ordinary-sized files and fall back to streaming for very large ones.
+    small = sum(i.file_size for i in zipfile.ZipFile(io.BytesIO(data)).infolist()) < 8 * 1024 * 1024
     try:
-        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+        wb = load_workbook(io.BytesIO(data), read_only=not small, data_only=True)
         for ws in wb.worksheets[:MAX_SHEETS]:
             if getattr(ws, "sheet_state", "visible") != "visible":
                 continue
             rows = [list(r) for r in ws.iter_rows(values_only=True, max_row=SCAN_ROWS)]
-            sheets.append(Sheet(ws.title, _trim(rows)))
+            merges = (
+                [
+                    (m.min_row - 1, m.min_col - 1, m.max_row - 1, m.max_col - 1)
+                    for m in ws.merged_cells.ranges
+                    if m.min_row <= SCAN_ROWS
+                ]
+                if small
+                else []
+            )
+            sheets.append(Sheet(ws.title, _trim(rows), merges))
         wb.close()
     except ImportFileError:
         raise

@@ -102,3 +102,10 @@ def test_zip_bombs_are_refused() -> None:
 def test_an_empty_workbook_is_explained() -> None:
     with pytest.raises(ImportFileError, match="any data"):
         read_workbook("e.xlsx", xlsx([]))
+
+
+def test_excel_text_escapes_become_real_characters() -> None:
+    data = xlsx([["Party", "Balance"], ["SYED_x000D_\nSADIQ", 5], ["Plain_x_name", 6]])
+    rows = read_workbook("e.xlsx", data).sheets[0].rows
+    assert rows[1][0] == "SYED\r\nSADIQ"
+    assert rows[2][0] == "Plain_x_name"  # only real _xHHHH_ escapes are decoded

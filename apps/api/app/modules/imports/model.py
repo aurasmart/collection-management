@@ -32,6 +32,8 @@ class ImportFileError(Exception):
 class Sheet:
     name: str
     rows: list[list[Any]]
+    # Merged ranges, 0-based (first_row, first_col, last_row, last_col). Excel only.
+    merges: list[tuple[int, int, int, int]] = field(default_factory=list)
 
 
 @dataclass

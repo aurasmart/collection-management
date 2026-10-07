@@ -115,6 +115,8 @@ class ColumnOut(BaseModel):
     confidence: Literal["high", "uncertain", "none"]
     alternatives: list[str]
     date_info: DateInfoOut | None
+    count: int
+    total: str | None
 
 
 class FieldStatusOut(BaseModel):
@@ -132,13 +134,25 @@ class SheetOut(BaseModel):
     rows: int
 
 
+class TableOut(BaseModel):
+    index: int
+    title: str
+    header_rows: list[int]  # 1-based first/last heading row, empty when there are no headings
+    first_row: int  # 1-based first/last record row
+    last_row: int
+    records: int
+
+
 class AnalysisOut(BaseModel):
     filename: str
     source: str
     ocr: bool
     sheets: list[SheetOut]
     sheet: int
-    header_row: int  # 1-based spreadsheet row; 0 = this sheet has no header row
+    header_row: int  # 1-based row of the lowest heading line; 0 = no heading row
+    table: int | None  # which detected table is shown (None = no table could be identified)
+    tables: list[TableOut]
+    structure: Literal["high", "low"]
     columns: list[ColumnOut]
     fields: list[FieldStatusOut]
     data_rows: int
@@ -261,10 +275,14 @@ def _mapping_notes(rows: list[RowOut]) -> list[str]:
 
 
 def _analysis_out(
-    wb: Workbook, filename: str, sheet_index: int, header_row: int | None | Literal["auto"]
+    wb: Workbook,
+    filename: str,
+    sheet_index: int,
+    header_row: int | None | Literal["auto"],
+    table: int | None,
 ) -> AnalysisOut:
     sheet = wb.sheets[sheet_index]
-    a = detect.analyze_sheet(sheet, header_row)
+    a = detect.analyze_sheet(sheet, header_row, table)
     return AnalysisOut(
         filename=filename,
         source=wb.kind,
@@ -272,6 +290,19 @@ def _analysis_out(
         sheets=[SheetOut(index=i, name=s.name, rows=len(s.rows)) for i, s in enumerate(wb.sheets)],
         sheet=sheet_index,
         header_row=(a.header_row + 1) if a.header_row is not None else 0,
+        table=a.table_index,
+        tables=[
+            TableOut(
+                index=t.index,
+                title=t.title,
+                header_rows=[t.header_rows[0] + 1, t.header_rows[-1] + 1] if t.header_rows else [],
+                first_row=t.first_row + 1,
+                last_row=t.last_row + 1,
+                records=t.records,
+            )
+            for t in a.tables
+        ],
+        structure=a.structure,
         columns=[
             ColumnOut(
                 index=c.index,
@@ -280,6 +311,8 @@ def _analysis_out(
                 suggested=c.suggested,
                 confidence=c.confidence,
                 alternatives=[str(f) for f in c.alternatives],
+                count=c.count,
+                total=c.total,
                 date_info=(
                     DateInfoOut(
                         ambiguous=c.date_info.ambiguous,
@@ -341,10 +374,11 @@ def analyze_import(
     sheet_url: Annotated[str | None, Form(max_length=2000)] = None,
     sheet: Annotated[int | None, Form()] = None,
     header_row: Annotated[int | None, Form()] = None,
+    table: Annotated[int | None, Form()] = None,
 ) -> AnalysisOut:
     wb, name = _load(file, sheet_url, ocr, google)
     idx = _pick_sheet(wb, sheet)
-    return _analysis_out(wb, name, idx, _header_param(header_row))
+    return _analysis_out(wb, name, idx, _header_param(header_row), table)
 
 
 @router.post(
@@ -360,23 +394,25 @@ def preview_import(
     sheet_url: Annotated[str | None, Form(max_length=2000)] = None,
     sheet: Annotated[int | None, Form()] = None,
     header_row: Annotated[int | None, Form()] = None,
+    table: Annotated[int | None, Form()] = None,
     mapping: Annotated[str | None, Form(max_length=2000)] = None,
     date_order: Annotated[Literal["dmy", "mdy"], Form()] = "dmy",
 ) -> PreviewOut:
     wb, name = _load(file, sheet_url, ocr, google)
     idx = _pick_sheet(wb, sheet)
     sh = wb.sheets[idx]
-    header = _header_param(header_row)
-    h = detect.header_row_index(sh.rows) if header == "auto" else header
+    analysis = detect.analyze_sheet(sh, _header_param(header_row), table)
+    if analysis.table is None:
+        raise _unprocessable(detect.NO_TABLE)
     chosen = _parse_mapping(mapping, max((len(r) for r in sh.rows), default=0))
     if chosen is None:
-        chosen = {str(k): v for k, v in detect.analyze_sheet(sh, header).mapping.items()}
+        chosen = {str(k): v for k, v in analysis.mapping.items()}
     final = {f: chosen.get(f) for f in FIELDS}
     missing = [LABELS[f] for f in REQUIRED if final.get(f) is None]
     if missing:
         raise _unprocessable(f"Choose a column for: {', '.join(missing)}.")
     try:
-        built = detect.build_rows(sh, h, final)
+        built = detect.build_rows(sh, analysis, final)
     except ImportFileError as exc:
         raise _unprocessable(str(exc)) from None
     if not built.rows:

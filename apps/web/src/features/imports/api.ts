@@ -49,7 +49,7 @@ function formFor(source: Source, extra: Record<string, string | undefined> = {})
 
 export async function analyzeSource(
   source: Source,
-  opts: { sheet?: number; headerRow?: number } = {},
+  opts: { sheet?: number; headerRow?: number; table?: number } = {},
 ): Promise<ImportResult<Analysis>> {
   try {
     const { data, error } = await api.POST('/api/v1/imports/analyze', {
@@ -58,6 +58,7 @@ export async function analyzeSource(
         formFor(source, {
           sheet: opts.sheet?.toString(),
           header_row: opts.headerRow?.toString(),
+          table: opts.table?.toString(),
         }),
     })
     if (data) return { ok: true, data }
@@ -69,7 +70,13 @@ export async function analyzeSource(
 
 export async function previewSource(
   source: Source,
-  opts: { sheet: number; headerRow: number; mapping: Mapping; dateOrder: DateOrder },
+  opts: {
+    sheet: number
+    headerRow: number | null
+    table: number | null
+    mapping: Mapping
+    dateOrder: DateOrder
+  },
 ): Promise<ImportResult<ImportPreview>> {
   try {
     const { data, error } = await api.POST('/api/v1/imports/preview', {
@@ -77,7 +84,9 @@ export async function previewSource(
       bodySerializer: () =>
         formFor(source, {
           sheet: String(opts.sheet),
-          header_row: String(opts.headerRow),
+          // Only a heading row the employer chose by hand is sent: otherwise the server finds it again.
+          header_row: opts.headerRow === null ? undefined : String(opts.headerRow),
+          table: opts.table === null ? undefined : String(opts.table),
           mapping: JSON.stringify(opts.mapping),
           date_order: opts.dateOrder,
         }),

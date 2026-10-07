@@ -394,6 +394,15 @@ export interface components {
             sheets: components["schemas"]["SheetOut"][];
             /** Source */
             source: string;
+            /**
+             * Structure
+             * @enum {string}
+             */
+            structure: "high" | "low";
+            /** Table */
+            table: number | null;
+            /** Tables */
+            tables: components["schemas"]["TableOut"][];
         };
         /** BankDetails */
         BankDetails: {
@@ -416,6 +425,8 @@ export interface components {
             sheet?: number | null;
             /** Sheet Url */
             sheet_url?: string | null;
+            /** Table */
+            table?: number | null;
         };
         /** Body_previewImport */
         Body_previewImport: {
@@ -435,6 +446,8 @@ export interface components {
             sheet?: number | null;
             /** Sheet Url */
             sheet_url?: string | null;
+            /** Table */
+            table?: number | null;
         };
         /** Body_uploadCompanyLogo */
         Body_uploadCompanyLogo: {
@@ -537,6 +550,8 @@ export interface components {
              * @enum {string}
              */
             confidence: "high" | "uncertain" | "none";
+            /** Count */
+            count: number;
             date_info: components["schemas"]["DateInfoOut"] | null;
             /** Header */
             header: string;
@@ -546,6 +561,8 @@ export interface components {
             samples: string[];
             /** Suggested */
             suggested: ("customer_name" | "phone" | "amount_due" | "reference" | "due_date") | null;
+            /** Total */
+            total: string | null;
         };
         /** CompanyChange */
         CompanyChange: {
@@ -940,6 +957,21 @@ export interface components {
             reason: string;
             /** Row Number */
             row_number: number;
+        };
+        /** TableOut */
+        TableOut: {
+            /** First Row */
+            first_row: number;
+            /** Header Rows */
+            header_rows: number[];
+            /** Index */
+            index: number;
+            /** Last Row */
+            last_row: number;
+            /** Records */
+            records: number;
+            /** Title */
+            title: string;
         };
         /** ValidationError */
         ValidationError: {

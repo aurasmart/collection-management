@@ -63,6 +63,8 @@ const col = (index: number, header: string, over: Record<string, unknown> = {}) 
   confidence: 'none',
   alternatives: [],
   date_info: null,
+  count: 0,
+  total: null,
   ...over,
 })
 
@@ -97,7 +99,7 @@ function analysis(
       required: f === 'customer_name' || f === 'amount_due',
       status: status[f] ?? (column === null ? 'missing' : 'detected'),
       column,
-      competing: [],
+      competing: [] as number[],
     }
   })
   return {
@@ -107,6 +109,9 @@ function analysis(
     sheets: [{ index: 0, name: 'Sheet1', rows: 8 }],
     sheet: 0,
     header_row: 1,
+    table: 0,
+    tables: [{ index: 0, title: '', header_rows: [1, 1], first_row: 2, last_row: 4, records: 3 }],
+    structure: 'high',
     columns: cols,
     fields,
     data_rows: 3,
@@ -115,10 +120,11 @@ function analysis(
   }
 }
 
+let client: ReturnType<typeof renderApp>['client']
 async function openImport(routes: Parameters<typeof mockApi>[0]) {
   fake.setSession('o@acme.test')
   const api = mockApi({ 'GET /api/v1/me': () => json(ME), ...routes })
-  renderApp('/upload')
+  client = renderApp('/upload').client
   await screen.findByRole('heading', { name: 'Import customer collections' })
   return api
 }
@@ -316,7 +322,8 @@ describe('mapping', () => {
       due_date: 4,
     })
     expect(fd.get('sheet')).toBe('0')
-    expect(fd.get('header_row')).toBe('1')
+    expect(fd.get('header_row')).toBeNull() // the server finds the headings again by itself
+    expect(fd.get('table')).toBe('0')
     expect(fd.get('date_order')).toBe('dmy')
     expect(fd.get('file')).not.toBeNull() // the file is sent again with every step
   })
@@ -418,7 +425,7 @@ describe('mapping', () => {
         },
       },
     )
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Headings are in' }), '3')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Headings end in' }), '3')
     await waitFor(() => expect(calls.some((c) => c.get('header_row') === '3')).toBe(true))
   })
 
@@ -471,6 +478,132 @@ describe('mapping', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Continue to review' }))
     expect(await screen.findByText('Choose a column for: Amount Due.')).toBeInTheDocument()
     expect(screen.getByText('Check how we read your file')).toBeInTheDocument()
+  })
+
+  it('says what table it found, where its headings are and how many records', async () => {
+    await toMapping({
+      table: 0,
+      tables: [
+        {
+          index: 0,
+          title: 'Group Summary',
+          header_rows: [8, 12],
+          first_row: 13,
+          last_row: 94,
+          records: 82,
+        },
+      ],
+      header_row: 12,
+      data_rows: 82,
+    })
+    expect(screen.getByText('Table detected')).toBeInTheDocument()
+    expect(screen.getByText(/Headings found in rows 8–12\. 82 records found\./)).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Headings end in' })).toHaveValue('12')
+  })
+
+  it('asks the employer to choose when Debit and Credit could both be the amount (nothing preselected)', async () => {
+    const columns = [
+      col(0, 'Particulars', { suggested: 'customer_name', confidence: 'high' }),
+      col(1, 'Closing Balance – Debit', {
+        samples: ['1716', '31960'],
+        count: 50,
+        total: '6310779.91',
+      }),
+      col(2, 'Closing Balance – Credit', {
+        samples: ['6712.99', '2950'],
+        count: 32,
+        total: '7725302.32',
+      }),
+    ]
+    const a = analysis({
+      columns,
+      notes: ['This looks like an accounting summary with Debit and Credit columns.'],
+    })
+    a.fields = a.fields.map((f) =>
+      f.field === 'amount_due' ? { ...f, status: 'uncertain', column: null, competing: [1, 2] } : f,
+    )
+    await toMapping(a)
+    expect(screen.getByText(/accounting summary with Debit and Credit/)).toBeInTheDocument()
+    expect(
+      screen.getByText('Choose between: Closing Balance – Debit or Closing Balance – Credit'),
+    ).toBeInTheDocument()
+    expect(detectedAs('Closing Balance – Debit')).toHaveValue('')
+    expect(detectedAs('Closing Balance – Credit')).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Continue to review' })).toBeDisabled()
+    const group = screen.getByRole('group', {
+      name: 'Which balance represents the amount you want to collect?',
+    })
+    expect(
+      within(group).getByText(
+        'Choose the side that represents money owed to your company. The other side will not be imported.',
+      ),
+    ).toBeInTheDocument()
+    const [debit, credit] = within(group).getAllByRole('radio')
+    expect(debit).not.toBeChecked() // never preselected
+    expect(credit).not.toBeChecked()
+    expect(within(group).getByText('50 customers · ₹63,10,779.91 in total')).toBeInTheDocument()
+    expect(within(group).getByText('32 customers · ₹77,25,302.32 in total')).toBeInTheDocument()
+    await userEvent.click(debit!)
+    expect(detectedAs('Closing Balance – Debit')).toHaveValue('amount_due')
+    expect(screen.getByRole('button', { name: 'Continue to review' })).toBeEnabled()
+  })
+
+  it('shows a calm message, not a made-up mapping, when no table can be identified', async () => {
+    const api = await toMapping({
+      table: null,
+      tables: [],
+      structure: 'low',
+      columns: [],
+      data_rows: 0,
+      notes: ["We couldn't confidently identify the table structure."],
+    })
+    expect(
+      screen.getAllByText("We couldn't confidently identify the table structure.").length,
+    ).toBeGreaterThan(0)
+    expect(screen.queryByRole('region', { name: 'What we need' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Continue to review' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Column A/)).not.toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Headings end in' })).toBeInTheDocument()
+    expect(api.called('POST /api/v1/imports/preview')).toHaveLength(0)
+  })
+
+  it('lets the employer pick which table on the sheet to import', async () => {
+    const calls: FormData[] = []
+    const tables = [
+      { index: 0, title: 'Customers', header_rows: [2, 2], first_row: 3, last_row: 5, records: 3 },
+      { index: 1, title: 'Suppliers', header_rows: [8, 8], first_row: 9, last_row: 10, records: 2 },
+    ]
+    await toMapping(
+      { tables },
+      {
+        'POST /api/v1/imports/analyze': async (req: Request) => {
+          calls.push(await req.clone().formData())
+          return json(analysis({ tables, table: Number(calls.at(-1)?.get('table') ?? 0) }))
+        },
+      },
+    )
+    const picker = screen.getByRole('combobox', { name: 'Table' })
+    expect(picker).toHaveValue('0')
+    expect(
+      within(picker).getByRole('option', { name: /Suppliers: rows 9–10 \(2 records\)/ }),
+    ).toBeInTheDocument()
+    await userEvent.selectOptions(picker, '1')
+    await waitFor(() => expect(calls.some((c) => c.get('table') === '1')).toBe(true))
+  })
+
+  it('sends a heading row only when the employer chose one by hand', async () => {
+    const api = await toMapping(
+      {},
+      { 'POST /api/v1/imports/analyze': () => json(analysis({ header_row: 3 })) },
+    )
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Headings end in' }), '3')
+    await waitFor(() =>
+      expect(api.called('POST /api/v1/imports/analyze').length).toBeGreaterThan(1),
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Continue to review' }))
+    await screen.findByText('2 customers found · all ready')
+    expect(form(api, 'POST /api/v1/imports/preview').get('header_row')).toBe('3')
+    expect(form(api, 'POST /api/v1/imports/preview').get('table')).toBeNull()
   })
 
   it('goes back to the start to choose a different file', async () => {
@@ -595,6 +728,18 @@ describe('review and confirm', () => {
     expect(body.source).toBe('excel')
     expect(body.rows).toHaveLength(2)
     expect(JSON.stringify(body)).not.toMatch(/employer/i)
+  })
+
+  it('refreshes the dashboard and collections after an import', async () => {
+    await toReview(preview([row(2)]), {
+      'POST /api/v1/imports/validate': () => json([row(2)]),
+      'POST /api/v1/imports/confirm': () => json({ imported: 1 }),
+    })
+    const spy = vi.spyOn(client, 'invalidateQueries')
+    await userEvent.click(screen.getByRole('button', { name: 'Import 1 customer' }))
+    await screen.findByText('1 customer imported')
+    const keys = spy.mock.calls.map((c) => JSON.stringify((c[0] as { queryKey: unknown }).queryKey))
+    expect(keys).toEqual(expect.arrayContaining(['["collections"]', '["dashboard"]']))
   })
 
   it('Import another file starts again with the Google Sheets form closed', async () => {

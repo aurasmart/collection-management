@@ -54,6 +54,32 @@
           "source": {
             "title": "Source",
             "type": "string"
+          },
+          "structure": {
+            "enum": [
+              "high",
+              "low"
+            ],
+            "title": "Structure",
+            "type": "string"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
+          },
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/TableOut"
+            },
+            "title": "Tables",
+            "type": "array"
           }
         },
         "required": [
@@ -63,6 +89,9 @@
           "sheets",
           "sheet",
           "header_row",
+          "table",
+          "tables",
+          "structure",
           "columns",
           "fields",
           "data_rows",
@@ -167,6 +196,17 @@
               }
             ],
             "title": "Sheet Url"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
           }
         },
         "title": "Body_analyzeImport",
@@ -240,6 +280,17 @@
               }
             ],
             "title": "Sheet Url"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Table"
           }
         },
         "title": "Body_previewImport",
@@ -553,6 +604,10 @@
             "title": "Confidence",
             "type": "string"
           },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
           "date_info": {
             "anyOf": [
               {
@@ -595,6 +650,17 @@
               }
             ],
             "title": "Suggested"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
         "required": [
@@ -604,7 +670,9 @@
           "suggested",
           "confidence",
           "alternatives",
-          "date_info"
+          "date_info",
+          "count",
+          "total"
         ],
         "title": "ColumnOut",
         "type": "object"
@@ -1918,6 +1986,47 @@
           "reason"
         ],
         "title": "SkippedOut",
+        "type": "object"
+      },
+      "TableOut": {
+        "properties": {
+          "first_row": {
+            "title": "First Row",
+            "type": "integer"
+          },
+          "header_rows": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Header Rows",
+            "type": "array"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "last_row": {
+            "title": "Last Row",
+            "type": "integer"
+          },
+          "records": {
+            "title": "Records",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "title",
+          "header_rows",
+          "first_row",
+          "last_row",
+          "records"
+        ],
+        "title": "TableOut",
         "type": "object"
       },
       "ValidationError": {

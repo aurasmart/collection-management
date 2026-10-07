@@ -131,3 +131,55 @@ def pdf_columns(rows: list[list[str]], pages: int = 1) -> bytes:
         c.showPage()
     c.save()
     return out.getvalue()
+
+
+def xlsx_merged(rows: list[list[Any]], merges: list[str], sheet: str = "Report") -> bytes:
+    wb = Workbook()
+    ws = wb.active
+    assert ws is not None
+    ws.title = sheet
+    for row in rows:
+        ws.append(row)
+    for ref in merges:
+        ws.merge_cells(ref)
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def tally_group_summary(parties: list[tuple[str, float | None, float | None]]) -> bytes:
+    """A synthetic copy of the layout of a Tally 'Group Summary' export (no real data)."""
+    rows: list[list[Any]] = [
+        ["Example Traders Pvt Ltd, Pune"],
+        ["1st Floor, Main Road, PUNE"],
+        ["Pune, Maharashtra"],
+        ["E-Mail : accounts@example.test"],
+        ["Sundry Creditors"],
+        ["Group Summary"],
+        ["1-Apr-24 to 6-Jul-26"],
+        [None, "Sundry Creditors"],
+        [None, "Example Traders Pvt Ltd, Pune"],
+        ["Particulars", "1-Apr-24 to 6-Jul-26"],
+        [None, "Closing Balance"],
+        [None, "Debit", "Credit"],
+        *[[name, dr, cr] for name, dr, cr in parties],
+        [
+            "Grand Total",
+            sum(p[1] or 0 for p in parties),
+            sum(p[2] or 0 for p in parties),
+        ],
+    ]
+    merges = [
+        "A1:C1",
+        "A2:C2",
+        "A3:C3",
+        "A4:C4",
+        "A5:C5",
+        "A6:C6",
+        "A7:C7",
+        "B8:C8",
+        "B9:C9",
+        "B10:C10",
+        "B11:C11",
+    ]
+    return xlsx_merged(rows, merges, "Sundry Creditors")

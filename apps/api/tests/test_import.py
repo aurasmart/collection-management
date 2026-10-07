@@ -261,7 +261,7 @@ def test_analyze_understands_a_real_world_file_without_exact_headers(
     assert [c["header"] for c in cols][:3] == ["Party Name", "Mobile No", "Outstanding"]
     assert cols[0]["samples"] == ["Rahul Sharma", "Amit Kumar", "Priya Singh"]
     assert cols[5]["suggested"] is None and cols[5]["confidence"] == "none"  # Salesman: ignored
-    assert body["data_rows"] == 4
+    assert body["data_rows"] == 3  # the Grand Total line is not a customer
 
 
 def test_analyze_picks_the_best_sheet_and_lets_the_employer_switch(

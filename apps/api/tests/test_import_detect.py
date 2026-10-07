@@ -158,7 +158,7 @@ def test_the_best_sheet_is_chosen_automatically() -> None:
 # ------------------------------------------------------------------ building rows
 def build(rows: list[list[Any]]) -> detect.BuiltRows:
     a = detect.analyze_sheet(sheet(rows))
-    return detect.build_rows(sheet(rows), a.header_row, a.mapping)
+    return detect.build_rows(sheet(rows), a, a.mapping)
 
 
 def test_total_summary_and_repeated_header_rows_are_not_customers() -> None:
@@ -174,9 +174,8 @@ def test_total_summary_and_repeated_header_rows_are_not_customers() -> None:
     ]
     built = build(rows)
     assert [r["customer_name"] for r in built.rows] == ["Rahul", "Priya"]
-    assert built.blank == 1
     reasons = {s.row_number: s.reason for s in built.skipped}
-    assert reasons[4] == "Repeated header row"
+    assert reasons[4] == "Repeated heading"
     assert reasons[6] == reasons[7] == reasons[8] == "Total or summary row"
 
 
