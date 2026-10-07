@@ -73,8 +73,11 @@ describe('route protection', () => {
   })
 
   it('keeps the public payment route reachable without a session', async () => {
-    renderApp('/pay/tok')
-    expect(await screen.findByRole('heading', { name: 'Payment page' })).toBeInTheDocument()
+    mockApi({ 'GET /api/v1/public/pay/tok1234567890': () => json({ detail: 'no' }, 404) })
+    renderApp('/pay/tok1234567890')
+    expect(
+      await screen.findByRole('heading', { name: "This link isn't valid" }),
+    ).toBeInTheDocument()
   })
 })
 

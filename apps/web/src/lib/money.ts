@@ -11,3 +11,10 @@ export function formatINR(value: number | string): string {
   if (!Number.isFinite(n)) throw new RangeError(`Not a money amount: ${String(value)}`)
   return inr.format(n)
 }
+
+/** Like formatINR but drops ".00" for whole rupees: ₹15,000 (used in messages and confirmations). */
+export function formatINRCompact(value: number | string): string {
+  const n = typeof value === 'string' ? Number(value) : value
+  if (!Number.isFinite(n)) throw new RangeError(`Not a money amount: ${String(value)}`)
+  return Number.isInteger(n) ? inr.format(n).replace(/\.00$/, '') : inr.format(n)
+}

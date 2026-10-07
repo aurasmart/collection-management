@@ -14,10 +14,11 @@ If a requirement conflicts with these, **STOP and report it**. Never make an ind
 architecture, data-model, security, payment-request, token or user-flow decision.
 
 ## Status
-Phase 0 (Foundations) is committed (baseline `33226ac`). Phase 1 (Authentication & Settings) is implemented and awaiting owner
-review. Do **not** start Phase 2+ until the owner approves. Phases: 0 Foundations →
-1 Auth & Settings → 2 Import pipeline (Excel/CSV) → 3 Collections & Dashboard → 4 Payment requests & public page →
-5 Payments & History → 6 Word/PDF/OCR/AI → 7 Hardening.
+Phase 0 (foundation) and Phase 1 (auth + payment settings) are committed. The **simplified MVP payment flow**
+(Excel/CSV → customers → payment page → manual Mark Paid) is implemented on top of them and awaiting review; see
+`docs/adr/0006-simple-payment-flow-mvp.md`. The original Stage 3 phases 2–6 are **superseded** by that ADR: do not build
+PDF/Word/OCR/AI, payment requests with snapshots, partial payments, gateways, UPI APIs or dynamic QR unless the owner
+re-approves them.
 
 ## Architecture
 - `apps/web` — React 19 + TypeScript (strict) + Vite PWA, Tailwind v4 + Radix primitives, TanStack Query,
@@ -42,7 +43,8 @@ partial payment: existing request stays an immutable snapshot; employer explicit
    Every tenant table has `employer_id`, RLS enabled and a policy. A test fails if a table lacks RLS.
 3. Service-role/DB credentials, `TOKEN_ENC_KEY`, `TOKEN_HMAC_SECRET`, `ANTHROPIC_API_KEY` are **backend-only**.
    Frontend env (`VITE_*`) is public values only. No secrets in git (`.env*` ignored; gitleaks in CI).
-4. Payment token model (ADR 0001): CSPRNG token → HMAC **lookup hash** + AES-GCM **encrypted token** (employer-side
+4. Payment page token (ADR 0006, supersedes ADR 0001 for the MVP): `collections.payment_token`, 128-bit random, plain, never in
+   lists/logs/audit. The QR on the page is ALWAYS the one general company QR, unmodified. Old ADR 0001 model (unused): CSPRNG token → HMAC **lookup hash** + AES-GCM **encrypted token** (employer-side
    retrieval only) → ciphertext **erased** on revoke/regenerate/cancel. Token/ciphertext never appear in list/detail/
    dashboard responses, logs or audit events. Snapshot columns are immutable (DB trigger).
 5. Sensitive payment-setting changes require a recent password sign-in (`amr` timestamp, ADR 0004); the server decides what is sensitive.

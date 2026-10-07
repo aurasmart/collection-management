@@ -15,6 +15,7 @@ dependencies = [
     "pillow>=12.3.0",
     "python-multipart>=0.0.32",
     "httpx>=0.28.1",
+    "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]
@@ -45,7 +46,7 @@ plugins = ["pydantic.mypy"]
 files = ["app", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["alembic.*"]
+module = ["alembic.*", "openpyxl.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

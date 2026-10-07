@@ -4,6 +4,160 @@
  */
 
 export interface paths {
+    "/api/v1/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Customers and what they owe */
+        get: operations["listCollections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collection_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One customer */
+        get: operations["getCollection"];
+        /** Edit a pending customer */
+        put: operations["updateCollection"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collection_id}/mark-paid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** The employer confirms the money was received (manual, no verification) */
+        post: operations["markCollectionPaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collection_id}/mark-unpaid": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Undo a Mark as Paid click (a plain status correction, nothing else changes) */
+        post: operations["markCollectionUnpaid"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collection_id}/payment-page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create this customer's payment-page link (the same link is returned if it exists) */
+        post: operations["generatePaymentPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Four simple numbers and the latest customers */
+        get: operations["getDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save the reviewed rows as customers (all or nothing) */
+        post: operations["confirmImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read an .xlsx/.csv file and show the rows */
+        post: operations["previewImport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Re-check rows after the employer edits them */
+        post: operations["validateImportRows"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -13,6 +167,40 @@ export interface paths {
         };
         /** Current employer (derived from the verified session) */
         get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/pay/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What the customer sees */
+        get: operations["getPublicPaymentPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/pay/{token}/qr": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The company's general QR image, exactly as uploaded in Settings */
+        get: operations["getPublicPaymentQr"];
         put?: never;
         post?: never;
         delete?: never;
@@ -96,10 +284,136 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** BankDetails */
+        BankDetails: {
+            /** Account Name */
+            account_name: string | null;
+            /** Account Number */
+            account_number: string;
+            /** Bank Name */
+            bank_name: string | null;
+            /** Ifsc */
+            ifsc: string | null;
+        };
+        /** Body_previewImport */
+        Body_previewImport: {
+            /** File */
+            file: string;
+        };
         /** Body_uploadPaymentQr */
         Body_uploadPaymentQr: {
             /** File */
             file: string;
+        };
+        /** CollectionDetail */
+        CollectionDetail: {
+            /** Amount Due */
+            amount_due: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Due Date */
+            due_date: string | null;
+            /** Has Payment Page */
+            has_payment_page: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Payment Token */
+            payment_token: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Reference */
+            reference: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "PENDING" | "PAID";
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** CollectionEdit */
+        CollectionEdit: {
+            /** Amount Due */
+            amount_due?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Reference */
+            reference?: string | null;
+        };
+        /** CollectionList */
+        CollectionList: {
+            /** Items */
+            items: components["schemas"]["CollectionRow"][];
+            /** Total */
+            total: number;
+        };
+        /** CollectionRow */
+        CollectionRow: {
+            /** Amount Due */
+            amount_due: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Due Date */
+            due_date: string | null;
+            /** Has Payment Page */
+            has_payment_page: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Phone */
+            phone: string | null;
+            /** Reference */
+            reference: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "PENDING" | "PAID";
+        };
+        /** ConfirmIn */
+        ConfirmIn: {
+            /**
+             * Filename
+             * @default
+             */
+            filename: string;
+            /** Rows */
+            rows: components["schemas"]["RowIn"][];
+        };
+        /** ConfirmOut */
+        ConfirmOut: {
+            /** Imported */
+            imported: number;
+        };
+        /** DashboardOut */
+        DashboardOut: {
+            /** Customers */
+            customers: number;
+            /** Paid Amount */
+            paid_amount: string;
+            /** Pending Customers */
+            pending_customers: number;
+            /** Recent */
+            recent: components["schemas"]["RecentRow"][];
+            /** Total Outstanding */
+            total_outstanding: string;
         };
         /** EmployerOut */
         EmployerOut: {
@@ -112,6 +426,13 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+        };
+        /** FieldError */
+        FieldError: {
+            /** Field */
+            field: string;
+            /** Message */
+            message: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -195,6 +516,105 @@ export interface components {
             /** Upi Number Enabled */
             upi_number_enabled: boolean;
         };
+        /** PreviewOut */
+        PreviewOut: {
+            /** Filename */
+            filename: string;
+            /** Invalid */
+            invalid: number;
+            /** Rows */
+            rows: components["schemas"]["RowOut"][];
+            /** Total */
+            total: number;
+            /** Valid */
+            valid: number;
+        };
+        /** PublicPage */
+        PublicPage: {
+            /** Amount Due */
+            amount_due?: string | null;
+            bank?: components["schemas"]["BankDetails"] | null;
+            /** Company Name */
+            company_name: string;
+            /** Customer Name */
+            customer_name: string;
+            /**
+             * Has Qr
+             * @default false
+             */
+            has_qr: boolean;
+            /** Reference */
+            reference?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "PENDING" | "PAID";
+            /** Upi Id */
+            upi_id?: string | null;
+            /** Upi Number */
+            upi_number?: string | null;
+        };
+        /** RecentRow */
+        RecentRow: {
+            /** Amount Due */
+            amount_due: string;
+            /** Customer Name */
+            customer_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "PENDING" | "PAID";
+        };
+        /**
+         * RowIn
+         * @description A row after the employer reviewed/edited it. The server re-validates everything.
+         */
+        RowIn: {
+            /** Amount Due */
+            amount_due?: string | null;
+            /** Customer Name */
+            customer_name?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Phone */
+            phone?: string | null;
+            /** Reference */
+            reference?: string | null;
+            /**
+             * Row Number
+             * @default 0
+             */
+            row_number: number;
+        };
+        /** RowOut */
+        RowOut: {
+            /** Amount Due */
+            amount_due: string;
+            /** Customer Name */
+            customer_name: string;
+            /** Due Date */
+            due_date: string | null;
+            /** Errors */
+            errors: components["schemas"]["FieldError"][];
+            /** Phone */
+            phone: string | null;
+            /** Reference */
+            reference: string | null;
+            /** Row Number */
+            row_number: number;
+        };
+        /** RowsIn */
+        RowsIn: {
+            /** Rows */
+            rows: components["schemas"]["RowIn"][];
+        };
         /** SettingChange */
         SettingChange: {
             /** Actor */
@@ -229,6 +649,316 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listCollections: {
+        parameters: {
+            query?: {
+                status?: ("PENDING" | "PAID") | null;
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updateCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    markCollectionPaid: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    markCollectionUnpaid: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generatePaymentPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getDashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardOut"];
+                };
+            };
+        };
+    };
+    confirmImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConfirmOut"];
+                };
+            };
+            /** @description Some rows still have errors */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    previewImport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_previewImport"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validateImportRows: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RowsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RowOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getMe: {
         parameters: {
             query?: never;
@@ -245,6 +975,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    getPublicPaymentPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPublicPaymentQr: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
+                };
+            };
+            /** @description No QR */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

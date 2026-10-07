@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NAV_ITEMS } from '@/app/shell/nav'
 import { fake } from '@/test/fake-supabase'
@@ -11,8 +11,15 @@ vi.mock('@/lib/supabase', async () => {
 
 const ME = { employer: { id: 'e1', name: 'Acme Traders', email: 'owner@acme.test' } }
 const healthy = () => ({
-  'GET /healthz': () => json({ status: 'ok' }),
   'GET /api/v1/me': () => json(ME),
+  'GET /api/v1/dashboard': () =>
+    json({
+      total_outstanding: '0.00',
+      pending_customers: 0,
+      paid_amount: '0.00',
+      customers: 0,
+      recent: [],
+    }),
 })
 
 beforeEach(() => {
@@ -62,32 +69,15 @@ describe('App shell (signed in)', () => {
   })
 })
 
-describe('Connectivity diagnostics', () => {
-  it('reports the backend as reachable when /healthz answers', async () => {
-    mockApi(healthy())
-    renderApp('/')
-    expect(await screen.findByText(/API reachable \(ok\)/)).toBeInTheDocument()
-    expect(await screen.findByText('Signed in')).toBeInTheDocument()
-  })
-
-  it('shows a clear error when the backend is down', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(() => Promise.reject(new TypeError('network down'))),
-    )
-    renderApp('/')
-    expect(await screen.findByText('API unreachable')).toBeInTheDocument()
-  })
-})
-
 describe('Public payment route', () => {
-  it('renders standalone (no employer navigation, no auth needed) and makes no API call', async () => {
+  it('renders standalone: no employer navigation and no sign-in needed', async () => {
     fake.setSession(null)
-    const api = mockApi({})
-    renderApp('/pay/some-token')
-    expect(await screen.findByRole('heading', { name: 'Payment page' })).toBeInTheDocument()
+    mockApi({ 'GET /api/v1/public/pay/some-token-0123': () => json({ detail: 'no' }, 404) })
+    renderApp('/pay/some-token-0123')
+    expect(
+      await screen.findByRole('heading', { name: "This link isn't valid" }),
+    ).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Primary' })).not.toBeInTheDocument()
-    await waitFor(() => expect(api.fn).not.toHaveBeenCalled())
-    expect(document.body.textContent).not.toContain('some-token')
+    expect(screen.queryByRole('heading', { name: 'Sign in' })).not.toBeInTheDocument()
   })
 })

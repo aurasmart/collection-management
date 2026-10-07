@@ -2,9 +2,17 @@
 
 Upload a spreadsheet/PDF/Word file of amounts you are owed → review the extracted records → confirm import →
 send customers a secure payment-instructions link → record payments.
-**Status: Phase 1 (Authentication & Settings) implemented.** Employers can sign in, reset a password, and manage
-Payment details (UPI / QR / bank, with re-authentication, preview and audit). Imports, collections, payment
-requests and payments arrive in later phases (see `docs/stage-3-implementation.md`).
+**Status: the simple payment flow is built on top of the Phase 0 + 1 foundation** (see `docs/adr/0006-simple-payment-flow-mvp.md`):
+
+1. Sign in → **Upload** an Excel (.xlsx) or CSV file (Customer Name, Phone Number, Amount Due, Reference, Due Date optional).
+   A sample is at `/sample-customers.csv`.
+2. Check and fix the rows, then **Import** → customers appear in **Collections** as *Pending*.
+3. Open a customer → **Generate Payment Page** → **Copy Link**, **Send on WhatsApp** or **Send SMS** (plain deep links).
+4. The customer opens the link (no login) and sees the amount plus your UPI ID, your **general company QR** (set in Settings,
+   never generated per customer) and bank details. They pay outside the app.
+5. You click **Mark as Paid** (or **Mark as Unpaid** to correct it). The **Dashboard** shows outstanding, pending customers, paid and totals.
+
+No payment gateway, no UPI API, no automatic payment checking. Set your UPI ID / QR / bank details first under **Settings**.
 
 Authoritative design docs: `docs/stage-1-system-design.md`, `docs/stage-2-ui-ux.md`, `docs/adr/`. Rules for contributors/agents: `CLAUDE.md`.
 

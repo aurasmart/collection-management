@@ -19,3 +19,11 @@ export const routes = {
 export function buildPayUrl(publicAppUrl: string, token: string): string {
   return `${publicAppUrl.replace(/\/$/, '')}/#${routes.pay(encodeURIComponent(token))}`
 }
+
+/** The link a customer opens. `publicAppUrl` is the public site address (no secrets). */
+export function paymentPageLink(token: string): string {
+  const base =
+    import.meta.env.VITE_PUBLIC_APP_URL ||
+    `${window.location.origin}${import.meta.env.BASE_URL}`.replace(/\/$/, '')
+  return buildPayUrl(base, token)
+}

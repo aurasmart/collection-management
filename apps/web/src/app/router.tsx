@@ -5,8 +5,11 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { NotFoundPage } from '@/app/pages/NotFound'
-import { PayPlaceholderPage } from '@/app/pages/PayPlaceholder'
-import { CollectionsPage, DashboardPage, UploadPage } from '@/app/pages/pages'
+import { CollectionDetailPage } from '@/features/collections/CollectionDetailPage'
+import { CollectionsPage } from '@/features/collections/CollectionsPage'
+import { DashboardPage } from '@/features/dashboard/DashboardPage'
+import { UploadPage } from '@/features/imports/UploadPage'
+import { PayPage } from '@/features/pay/PayPage'
 import { SettingsPage } from '@/features/settings/SettingsPage'
 
 /** Hash routing for GitHub Pages (docs/adr/0002). Paths come from lib/routes.ts. */
@@ -23,6 +26,7 @@ export const routeObjects: RouteObject[] = [
         children: [
           { index: true, element: <DashboardPage /> },
           { path: 'collections', element: <CollectionsPage /> },
+          { path: 'collections/:id', element: <CollectionDetailPage /> },
           { path: 'upload', element: <UploadPage /> },
           { path: 'settings', element: <SettingsPage /> },
           { path: '*', element: <NotFoundPage /> },
@@ -31,7 +35,7 @@ export const routeObjects: RouteObject[] = [
     ],
   },
   // Public, customer-facing: standalone layout, outside the employer shell.
-  { path: 'pay/:token', element: <PayPlaceholderPage /> },
+  { path: 'pay/:token', element: <PayPage /> },
 ]
 
 export const createAppRouter = () => createHashRouter(routeObjects)

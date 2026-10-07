@@ -106,6 +106,14 @@ def client() -> Iterator[TestClient]:
         yield c
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limits() -> None:
+    from app.core.ratelimit import public_miss_limiter, public_page_limiter
+
+    public_page_limiter.reset()
+    public_miss_limiter.reset()
+
+
 class Tenant:
     def __init__(self, employer_id: uuid.UUID, auth_user_id: uuid.UUID, ids: dict[str, uuid.UUID]):
         self.employer_id = employer_id
@@ -252,3 +260,21 @@ def stale_auth(sub: uuid.UUID) -> dict[str, str]:
 @pytest.fixture
 def storage_dir() -> Path:
     return Path(_STORAGE_DIR)
+
+
+@pytest.fixture
+def make_employer(admin_engine: Engine) -> Callable[[str], Tenant]:
+    """An employer with NO other rows (clean slate for the import/collections tests)."""
+
+    def _make(label: str) -> Tenant:
+        eid, auth = uuid.uuid4(), uuid.uuid4()
+        with admin_engine.connect() as c:
+            c.execute(
+                text(
+                    "INSERT INTO employers (id, auth_user_id, name, email) VALUES (:e, :a, :n, :m)"
+                ),
+                {"e": eid, "a": auth, "n": f"Employer {label}", "m": f"{label}@example.test"},
+            )
+        return Tenant(eid, auth, {})
+
+    return _make
