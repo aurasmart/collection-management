@@ -42,7 +42,12 @@ def db_url() -> str:
 def test_creates_auth_user_employer_and_audit_event(admin_engine: Engine) -> None:
     admin = FakeAdmin()
     res = provision_employer(
-        db_url(), admin, name="Acme Traders", email=" Owner@Acme.Example ", password=PASSWORD
+        db_url(),
+        admin,
+        full_name="Asha Rao",
+        company_name="Acme Traders",
+        email=" Owner@Acme.Example ",
+        password=PASSWORD,
     )
     assert res.created_auth_user and res.auth_user_id == admin.user_id
     assert admin.created == [("owner@acme.example", PASSWORD)]
@@ -57,9 +62,20 @@ def test_creates_auth_user_employer_and_audit_event(admin_engine: Engine) -> Non
         ).one()
     assert (row.auth_user_id, row.name, row.email) == (
         admin.user_id,
-        "Acme Traders",
+        "Asha Rao",  # the account name is the person's name
         "owner@acme.example",
     )
+    with admin_engine.connect() as c:
+        profile = c.execute(
+            text("SELECT display_name FROM company_profiles WHERE employer_id = :i"),
+            {"i": res.employer_id},
+        ).one()
+        settings_rows = c.execute(
+            text("SELECT upi_enabled, bank_enabled FROM payment_settings WHERE employer_id = :i"),
+            {"i": res.employer_id},
+        ).all()
+    assert profile.display_name == "Acme Traders"  # the company name
+    assert [tuple(r) for r in settings_rows] == [(False, False)]  # initialised, nothing shown
     assert (audit.actor, audit.action, audit.details) == (
         "operator",
         "employer_provisioned",
@@ -70,7 +86,14 @@ def test_creates_auth_user_employer_and_audit_event(admin_engine: Engine) -> Non
 
 def test_provisioned_employer_can_use_the_api(client: TestClient) -> None:
     admin = FakeAdmin()
-    provision_employer(db_url(), admin, name="Acme", email="o@acme.example", password=PASSWORD)
+    provision_employer(
+        db_url(),
+        admin,
+        full_name="Asha Rao",
+        company_name="Acme",
+        email="o@acme.example",
+        password=PASSWORD,
+    )
     r = client.get("/api/v1/me", headers=bearer(admin.user_id))
     assert r.status_code == 200 and r.json()["employer"]["email"] == "o@acme.example"
 
@@ -78,7 +101,12 @@ def test_provisioned_employer_can_use_the_api(client: TestClient) -> None:
 def test_links_an_existing_auth_user_without_touching_supabase(admin_engine: Engine) -> None:
     existing = uuid.uuid4()
     res = provision_employer(
-        db_url(), None, name="Linked Co", email="l@linked.example", auth_user_id=existing
+        db_url(),
+        None,
+        full_name="Asha Rao",
+        company_name="Linked Co",
+        email="l@linked.example",
+        auth_user_id=existing,
     )
     assert not res.created_auth_user and res.auth_user_id == existing
 
@@ -86,10 +114,25 @@ def test_links_an_existing_auth_user_without_touching_supabase(admin_engine: Eng
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"name": "A", "email": "a@b.example", "password": PASSWORD},
-        {"name": "Acme", "email": "not-an-email", "password": PASSWORD},
-        {"name": "Acme", "email": "a@b.example", "password": "short"},
-        {"name": "Acme", "email": "a@b.example", "password": None},
+        {
+            "full_name": "Asha Rao",
+            "company_name": "A",
+            "email": "a@b.example",
+            "password": PASSWORD,
+        },
+        {
+            "full_name": "Asha Rao",
+            "company_name": "Acme",
+            "email": "not-an-email",
+            "password": PASSWORD,
+        },
+        {
+            "full_name": "Asha Rao",
+            "company_name": "Acme",
+            "email": "a@b.example",
+            "password": "short",
+        },
+        {"full_name": "Asha Rao", "company_name": "Acme", "email": "a@b.example", "password": None},
     ],
 )
 def test_input_is_validated_before_anything_is_created(kwargs: dict[str, Any]) -> None:
@@ -101,7 +144,14 @@ def test_input_is_validated_before_anything_is_created(kwargs: dict[str, Any]) -
 
 def test_requires_admin_access_when_creating_a_login() -> None:
     with pytest.raises(ProvisioningError, match="SUPABASE_URL"):
-        provision_employer(db_url(), None, name="Acme", email="a@b.example", password=PASSWORD)
+        provision_employer(
+            db_url(),
+            None,
+            full_name="Asha Rao",
+            company_name="Acme",
+            email="a@b.example",
+            password=PASSWORD,
+        )
 
 
 def test_refuses_duplicates_without_creating_a_second_login(make_tenant: Any) -> None:
@@ -109,11 +159,21 @@ def test_refuses_duplicates_without_creating_a_second_login(make_tenant: Any) ->
     admin = FakeAdmin()
     with pytest.raises(ProvisioningError, match="already exists"):
         provision_employer(
-            db_url(), admin, name="Other", email="DUP@example.test", password=PASSWORD
+            db_url(),
+            admin,
+            full_name="Asha Rao",
+            company_name="Other",
+            email="DUP@example.test",
+            password=PASSWORD,
         )
     with pytest.raises(ProvisioningError, match="already exists"):
         provision_employer(
-            db_url(), None, name="Other", email="x@y.example", auth_user_id=t.auth_user_id
+            db_url(),
+            None,
+            full_name="Asha Rao",
+            company_name="Other",
+            email="x@y.example",
+            auth_user_id=t.auth_user_id,
         )
     assert admin.created == []
 
@@ -125,7 +185,12 @@ def test_database_failure_removes_the_freshly_created_login(make_tenant: Any) ->
     )  # collides with the UNIQUE auth_user_id after the pre-check
     with pytest.raises(Exception, match=r".*"):  # noqa: B017 - DB integrity error surfaces unchanged
         provision_employer(
-            db_url(), admin, name="Acme", email="new@acme.example", password=PASSWORD
+            db_url(),
+            admin,
+            full_name="Asha Rao",
+            company_name="Acme",
+            email="new@acme.example",
+            password=PASSWORD,
         )
     assert admin.deleted == [t.auth_user_id]
 
@@ -173,7 +238,17 @@ def test_cli_link_mode_prints_ids_and_never_a_password(
     monkeypatch.delenv("PROVISION_PASSWORD", raising=False)
     existing = uuid.uuid4()
     code = provisioning.main(
-        ["create", "--name", "Cli Co", "--email", "cli@co.example", "--auth-user-id", str(existing)]
+        [
+            "create",
+            "--full-name",
+            "Cli Owner",
+            "--company",
+            "Cli Co",
+            "--email",
+            "cli@co.example",
+            "--auth-user-id",
+            str(existing),
+        ]
     )
     out = capsys.readouterr()
     assert code == 0 and str(existing) in out.out and "employer_id" in out.out
@@ -182,6 +257,16 @@ def test_cli_link_mode_prints_ids_and_never_a_password(
 
 def test_cli_reports_operator_errors_with_exit_code_1(capsys: pytest.CaptureFixture[str]) -> None:
     code = provisioning.main(
-        ["create", "--name", "X", "--email", "bad", "--auth-user-id", str(uuid.uuid4())]
+        [
+            "create",
+            "--full-name",
+            "X",
+            "--company",
+            "X",
+            "--email",
+            "bad",
+            "--auth-user-id",
+            str(uuid.uuid4()),
+        ]
     )
     assert code == 1 and "error:" in capsys.readouterr().err

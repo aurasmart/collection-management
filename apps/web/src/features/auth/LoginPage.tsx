@@ -58,6 +58,11 @@ export function LoginPage() {
 
   return (
     <AuthLayout title="Sign in">
+      {params.get('confirmed') && (
+        <Alert tone="success" className="mb-4">
+          Your email is confirmed. Sign in to set up your company.
+        </Alert>
+      )}
       {params.get('expired') && (
         <Alert tone="info" className="mb-4">
           Your session expired. Please sign in again.
@@ -97,6 +102,15 @@ export function LoginPage() {
         >
           Forgot password?
         </Link>
+        <p className="text-center text-ink-2">
+          Don't have an account?{' '}
+          <Link
+            to={routes.signup}
+            className="inline-flex min-h-11 items-center font-medium text-accent hover:underline"
+          >
+            Sign up
+          </Link>
+        </p>
       </form>
     </AuthLayout>
   )

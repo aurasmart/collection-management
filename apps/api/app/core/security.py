@@ -6,7 +6,7 @@ Algorithms are pinned per key type; `none` and algorithm confusion are rejected.
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Annotated, Any
@@ -29,6 +29,9 @@ class AuthenticatedUser:
     email: str | None
     # Time of the most recent password authentication for this session (from the `amr` claim).
     last_password_auth_at: datetime | None = None
+    # Supabase `user_metadata` (what the sign-up form stored). Only ever used to NAME the user's own
+    # workspace: never for authorisation.
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 def _unauthorized(detail: str = "Not authenticated") -> HTTPException:
@@ -73,7 +76,13 @@ def require_user(
         auth_user_id=user_id,
         email=email if isinstance(email, str) else None,
         last_password_auth_at=_last_password_auth(claims),
+        metadata=_metadata(claims),
     )
+
+
+def _metadata(claims: dict[str, Any]) -> dict[str, Any]:
+    meta = claims.get("user_metadata")
+    return dict(meta) if isinstance(meta, dict) else {}
 
 
 def _last_password_auth(claims: dict[str, Any]) -> datetime | None:

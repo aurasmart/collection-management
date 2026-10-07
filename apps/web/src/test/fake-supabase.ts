@@ -38,6 +38,16 @@ export function createFakeSupabase() {
       emit('SIGNED_OUT', null)
       return { error: null }
     }),
+    signUp: vi.fn(async (args: unknown) => {
+      void args
+      return {
+        data: {
+          user: { id: 'u-new', identities: [{}] } as { id: string; identities: unknown[] } | null,
+          session: null as FakeSession | null,
+        },
+        error: null as unknown,
+      }
+    }),
     resetPasswordForEmail: vi.fn(async () => ({
       data: {},
       error: null as unknown,

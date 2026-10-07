@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/v1/account/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create the workspace for the signed-in user (first sign-in after sign up)
+         * @description Takes NO input: who the user is comes from the verified session, and the names come from the
+         *     sign-up form data that Supabase stored on that same session. No employer id is ever accepted.
+         */
+        post: operations["setupAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collections": {
         parameters: {
             query?: never;
@@ -942,6 +963,11 @@ export interface components {
             /** Fields */
             fields: string[];
         };
+        /** SetupOut */
+        SetupOut: {
+            /** Created */
+            created: boolean;
+        };
         /** SheetOut */
         SheetOut: {
             /** Index */
@@ -995,6 +1021,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    setupAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SetupOut"];
+                };
+            };
+        };
+    };
     listCollections: {
         parameters: {
             query?: {

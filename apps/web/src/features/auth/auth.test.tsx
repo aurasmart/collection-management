@@ -144,11 +144,17 @@ describe('login', () => {
     )
   })
 
-  it('offers no public signup', async () => {
+  it('keeps the sign-in form and adds a Sign up link below it', async () => {
     renderApp('/login')
     await screen.findByRole('heading', { name: 'Sign in' })
-    expect(screen.queryByText(/sign up|register|create account/i)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Forgot password?' })).toBeInTheDocument()
+    expect(screen.getByText("Don't have an account?")).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign up' })).toHaveAttribute('href', '/signup')
+  })
+
+  it('welcomes people who just confirmed their email', async () => {
+    renderApp('/login?confirmed=1')
+    expect(await screen.findByText(/Your email is confirmed/)).toBeInTheDocument()
   })
 })
 

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react'
 import { authEvents } from '@/lib/auth-events'
+import { appUrl, routes } from '@/lib/routes'
 import { supabase } from '@/lib/supabase'
 
 /**
@@ -27,6 +28,19 @@ export type ChangePasswordResult =
       reason: 'wrong_current' | 'same' | 'weak' | 'rate_limited' | 'network' | 'unknown'
     }
 
+export interface SignUpInput {
+  fullName: string
+  email: string
+  companyName: string
+  phone: string
+  password: string
+}
+
+/** 'ready' = signed in already; 'confirm_email' = Supabase wants the address confirmed first. */
+export type SignUpResult =
+  | { ok: true; next: 'ready' | 'confirm_email' }
+  | { ok: false; reason: 'exists' | 'weak' | 'rate_limited' | 'network' | 'unknown' }
+
 interface AuthState {
   status: AuthStatus
   email: string | null
@@ -34,6 +48,8 @@ interface AuthState {
 
 interface AuthApi extends AuthState {
   signIn: (email: string, password: string) => Promise<SignInResult>
+  /** Creates the Supabase login. The workspace itself is created by the API on first sign-in. */
+  signUp: (input: SignUpInput) => Promise<SignUpResult>
   /** Re-checks the current user's password (session-expiry and sensitive-change confirmation). */
   confirmPassword: (password: string) => Promise<SignInResult>
   /** Verifies the current password, then sets the new one on the existing session. */
@@ -105,6 +121,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const signUp = useCallback<AuthApi['signUp']>(async (input) => {
+    if (!supabase) return { ok: false, reason: 'unknown' }
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: input.email.trim().toLowerCase(),
+        password: input.password,
+        options: {
+          // Only used to NAME the user's own workspace on first sign-in; never for access.
+          data: {
+            full_name: input.fullName.trim(),
+            company_name: input.companyName.trim(),
+            ...(input.phone.trim() ? { phone: input.phone.trim() } : {}),
+          },
+          emailRedirectTo: appUrl(`${routes.login}?confirmed=1`),
+        },
+      })
+      if (error) {
+        const e = error as { status?: number; code?: string; name?: string }
+        if (e.code === 'user_already_exists' || e.code === 'email_exists') {
+          return { ok: false, reason: 'exists' }
+        }
+        if (e.code === 'weak_password') return { ok: false, reason: 'weak' }
+        if (e.status === 429 || e.code?.startsWith('over_')) {
+          return { ok: false, reason: 'rate_limited' }
+        }
+        if (e.name === 'AuthRetryableFetchError' || e.status === 0) {
+          return { ok: false, reason: 'network' }
+        }
+        return { ok: false, reason: 'unknown' }
+      }
+      // Supabase answers "success" for an address that is already registered, but with no identities.
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+        return { ok: false, reason: 'exists' }
+      }
+      return { ok: true, next: data.session ? 'ready' : 'confirm_email' }
+    } catch {
+      return { ok: false, reason: 'network' }
+    }
+  }, [])
+
   const confirmPassword = useCallback<AuthApi['confirmPassword']>(
     async (password) => {
       if (!state.email) return { ok: false, reason: 'unknown' }
@@ -154,8 +210,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo<AuthApi>(
-    () => ({ ...state, signIn, confirmPassword, changePassword, signOut }),
-    [state, signIn, confirmPassword, changePassword, signOut],
+    () => ({ ...state, signIn, signUp, confirmPassword, changePassword, signOut }),
+    [state, signIn, signUp, confirmPassword, changePassword, signOut],
   )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

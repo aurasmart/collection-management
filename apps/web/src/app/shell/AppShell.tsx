@@ -1,8 +1,11 @@
-import { NavLink, Outlet } from 'react-router'
+import { useEffect } from 'react'
+import { NavLink, Outlet, useNavigate } from 'react-router'
 import { cn } from '@/lib/cn'
 import { AccountMenu } from '@/app/shell/AccountMenu'
 import { NAV_ITEMS } from '@/app/shell/nav'
 import { useMe } from '@/features/auth/useMe'
+import { getOnboarding, setOnboarding } from '@/features/onboarding/onboarding'
+import { routes } from '@/lib/routes'
 import { useCompanyProfile } from '@/features/settings/companyApi'
 
 /**
@@ -13,6 +16,14 @@ import { useCompanyProfile } from '@/features/settings/companyApi'
  */
 export function AppShell() {
   const me = useMe()
+  const navigate = useNavigate()
+  // A brand-new account lands on Company profile first (every step can be skipped).
+  useEffect(() => {
+    if (me.data && getOnboarding() === 'start') {
+      setOnboarding('active')
+      navigate(routes.settingsCompany, { replace: true })
+    }
+  }, [me.data, navigate])
   const company = useCompanyProfile()
   // The company name set in Settings wins; the account name is only the fallback.
   const workspace = company.data?.display_name ?? me.data?.name

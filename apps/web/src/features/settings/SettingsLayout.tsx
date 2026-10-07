@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from 'react-router'
+import { OnboardingBanner } from '@/features/onboarding/OnboardingBanner'
 import { cn } from '@/lib/cn'
 import { routes } from '@/lib/routes'
 
@@ -14,6 +15,7 @@ export function SettingsLayout() {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">Settings</h1>
+      <OnboardingBanner />
       <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)]">
         <nav aria-label="Settings sections">
           <ul className="flex flex-wrap gap-2 md:flex-col md:gap-1">

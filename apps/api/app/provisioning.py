@@ -1,12 +1,13 @@
-"""Operator employer-provisioning (docs/adr/0003 A6). There is NO public signup.
+"""Operator provisioning of an employer (docs/adr/0007): an admin-only CLI on a trusted machine.
 
-    uv run python -m app.provisioning create --name "Acme Traders" --email owner@acme.example
-    uv run python -m app.provisioning create --name "Acme Traders" --email owner@acme.example \\
-        --auth-user-id <existing Supabase auth user id>      # link instead of creating
+    uv run python -m app.provisioning create --full-name "Asha Rao" --company "Acme Traders" \\
+        --email owner@acme.example [--phone "98765 43210"]
+    uv run python -m app.provisioning create ... --auth-user-id <existing Supabase auth user id>
 
-Creates the Supabase Auth user (admin API, backend-only service key) and the linked `employers`
-row. Safe to re-run: it refuses duplicates, and removes a freshly created auth user if the
-database step fails. The password is prompted (never a CLI argument) and never printed or logged.
+Creates the Supabase Auth user (admin API, backend-only service key) and the linked workspace:
+employer + company profile + payment settings, in one transaction. Safe to re-run: it refuses
+duplicates, and removes a freshly created auth user if the database step fails. The password is
+prompted (never a CLI argument) and never printed or logged.
 """
 
 from __future__ import annotations
@@ -14,7 +15,6 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
-import re
 import sys
 import uuid
 from dataclasses import dataclass
@@ -24,9 +24,9 @@ import httpx
 from sqlalchemy import create_engine, text
 
 from app.core.config import get_settings
+from app.workspace import WorkspaceError, clean_workspace, create_workspace
 
 MIN_PASSWORD_LENGTH = 12
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class ProvisioningError(Exception):
@@ -81,18 +81,19 @@ def provision_employer(
     database_url: str,
     admin: AuthAdmin | None,
     *,
-    name: str,
+    full_name: str,
+    company_name: str,
     email: str,
     phone: str | None = None,
     password: str | None = None,
     auth_user_id: uuid.UUID | None = None,
 ) -> Provisioned:
-    name = name.strip()
-    email = email.strip().lower()
-    if not 2 <= len(name) <= 120:
-        raise ProvisioningError("Name must be 2 to 120 characters.")
-    if not _EMAIL_RE.match(email):
-        raise ProvisioningError("Enter a valid email address.")
+    try:
+        ws = clean_workspace(
+            email=email, full_name=full_name, company_name=company_name, phone=phone
+        )
+    except WorkspaceError as exc:
+        raise ProvisioningError(str(exc)) from None
     if auth_user_id is None:
         if admin is None:
             raise ProvisioningError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.")
@@ -104,7 +105,7 @@ def provision_employer(
         with engine.connect() as conn:
             clash = conn.execute(
                 text("SELECT 1 FROM employers WHERE lower(email) = :e OR auth_user_id = :a"),
-                {"e": email, "a": auth_user_id},
+                {"e": ws.email, "a": auth_user_id},
             ).first()
             if clash:
                 raise ProvisioningError("An employer with this email or auth user already exists.")
@@ -112,33 +113,27 @@ def provision_employer(
         created = auth_user_id is None
         if created:
             assert admin is not None and password is not None  # noqa: S101 (validated above)
-            auth_user_id = admin.create_user(email, password)
+            auth_user_id = admin.create_user(ws.email, password)
         assert auth_user_id is not None  # noqa: S101
         try:
-            with engine.begin() as conn:
-                employer_id = conn.execute(
-                    text(
-                        "INSERT INTO employers (auth_user_id, name, email, phone) "
-                        "VALUES (:a, :n, :e, :p) RETURNING id"
-                    ),
-                    {"a": auth_user_id, "n": name, "e": email, "p": phone},
-                ).scalar_one()
-                conn.execute(
-                    text(
-                        "INSERT INTO audit_events (employer_id, actor, entity_type, entity_id, "
-                        "action, details) VALUES (:e, 'operator', 'employer', :e, "
-                        "'employer_provisioned', CAST(:d AS jsonb))"
-                    ),
-                    {
-                        "e": employer_id,
-                        "d": '{"method": "%s"}' % ("created" if created else "linked"),
-                    },
+            with engine.begin() as conn:  # employer + profile + payment settings, all or nothing
+                employer_id, made = create_workspace(
+                    conn,
+                    ws,
+                    auth_user_id,
+                    actor="operator",
+                    action="employer_provisioned",
+                    details={"method": "created" if created else "linked"},
                 )
+                if not made:  # that login already owns a workspace: never silently reuse it
+                    raise ProvisioningError(
+                        "An employer with this email or auth user already exists."
+                    )
         except Exception:
             if created and admin is not None:
                 admin.delete_user(auth_user_id)  # do not leave an orphaned login behind
             raise
-        return Provisioned(uuid.UUID(str(employer_id)), auth_user_id, created)
+        return Provisioned(employer_id, auth_user_id, created)
     finally:
         engine.dispose()
 
@@ -147,7 +142,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="app.provisioning", description=__doc__.split("\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
     create = sub.add_parser("create", help="create an employer and its login")
-    create.add_argument("--name", required=True)
+    create.add_argument("--full-name", required=True, help="the account holder's name")
+    create.add_argument("--company", required=True, help="the company / business name")
     create.add_argument("--email", required=True)
     create.add_argument("--phone")
     create.add_argument(
@@ -173,7 +169,8 @@ def main(argv: list[str] | None = None) -> int:
         result = provision_employer(
             settings.database_url,
             admin,
-            name=args.name,
+            full_name=args.full_name,
+            company_name=args.company,
             email=args.email,
             phone=args.phone,
             password=password,

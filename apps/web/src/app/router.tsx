@@ -3,6 +3,7 @@ import { AppShell } from '@/app/shell/AppShell'
 import { ForgotPasswordPage } from '@/features/auth/ForgotPasswordPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth } from '@/features/auth/RequireAuth'
+import { SignupPage } from '@/features/auth/SignupPage'
 import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { NotFoundPage } from '@/app/pages/NotFound'
 import { CollectionDetailPage } from '@/features/collections/CollectionDetailPage'
@@ -20,6 +21,7 @@ import { SettingsLayout } from '@/features/settings/SettingsLayout'
 export const routeObjects: RouteObject[] = [
   // Public auth screens live OUTSIDE the guard, so signed-out users can never loop.
   { path: 'login', element: <LoginPage /> },
+  { path: 'signup', element: <SignupPage /> },
   { path: 'forgot-password', element: <ForgotPasswordPage /> },
   { path: 'reset-password', element: <ResetPasswordPage /> },
   {

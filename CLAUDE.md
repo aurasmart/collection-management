@@ -48,7 +48,7 @@ partial payment: existing request stays an immutable snapshot; employer explicit
    retrieval only) → ciphertext **erased** on revoke/regenerate/cancel. Token/ciphertext never appear in list/detail/
    dashboard responses, logs or audit events. Snapshot columns are immutable (DB trigger).
 5. Sensitive payment-setting changes require a recent password sign-in (`amr` timestamp, ADR 0004); the server decides what is sensitive.
-   Audit events store field NAMES only. Employers are provisioned by `python -m app.provisioning` (no signup UI).
+   Audit events store field NAMES only. Employers come from public sign-up (Supabase Auth + `POST /api/v1/account/setup`, which builds the workspace from the verified session) or from the admin-only CLI `python -m app.provisioning` (ADR 0007). Never accept an employer id from the browser.
 6. Never trust the browser: validate server-side; OCR rows can never be imported without explicit human acceptance (DB + API).
 7. No tokens, JWTs or PII in logs (`app/core/logging.py` redacts defensively; do not rely on it).
 

@@ -56,15 +56,20 @@ Optional worker (heartbeat only in Phase 0): `(cd apps/api && uv run python -m a
 Shortcuts: `make install db-up migrate api web worker`.
 
 ### Authentication, provisioning and settings (Phase 1)
-Login/reset use **Supabase Auth** from the browser (public anon key only); every data call goes to our API with the
-user's access token. There is **no signup**: an operator creates each employer with the provisioning command, which
-needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `apps/api/.env` (backend/operator machine only):
+Sign in, **sign up** and password reset use **Supabase Auth** from the browser (public anon key only); every data
+call goes to our API with the user's access token. A new person signs up on `/#/signup`; after they confirm their email
+and sign in, the API creates their workspace (employer, company profile, payment settings) from the verified session
+(ADR 0007). Enable "email signups" and set the password minimum to 12 in the Supabase project.
+
+An operator can also create an employer directly. This needs `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in
+`apps/api/.env` (backend/operator machine only; never in the browser):
 
 ```bash
 cd apps/api
-uv run python -m app.provisioning create --name "Acme Traders" --email owner@acme.example   # prompts for the password
-uv run python -m app.provisioning create --name "Acme Traders" --email owner@acme.example \
-    --auth-user-id <existing Supabase auth user id>                                      # link instead of create
+uv run python -m app.provisioning create --full-name "Asha Rao" --company "Acme Traders" \
+    --email owner@acme.example [--phone "98765 43210"]                       # prompts for the password
+uv run python -m app.provisioning create --full-name "Asha Rao" --company "Acme Traders" \
+    --email owner@acme.example --auth-user-id <existing Supabase auth user id>   # link instead of create
 ```
 It refuses duplicates, requires a 12+ character password, never prints the password, and removes a freshly created
 Supabase user if the database step fails. For local development without Supabase, link an existing/test auth user with
