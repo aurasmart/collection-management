@@ -1,3 +1,4 @@
+# SUPERSEDED: production runs on Railway (apps/api/railway.json, see docs/runbook.md). Kept for reference only.
 # Render Blueprint (not applied automatically). Create from this file in the Render dashboard.
 # Secrets are declared with `sync: false`: Render asks for them; they are never stored in git.
 # NOTE: preDeployCommand and background workers require paid instance types on Render.

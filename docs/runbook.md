@@ -1,49 +1,88 @@
-# Runbook (Phase 0)
+# Runbook
 
-## Environments
-local · staging · production — separate Supabase project, Render services and keys for each. Never share secrets across them.
+## Architecture in production
+| Part | Where | Notes |
+|---|---|---|
+| Web app (static, hash-routed) | **GitHub Pages** | built by `.github/workflows/deploy-web.yml` |
+| API | **Railway** (Docker, `apps/api`) | `apps/api/railway.json`; Tesseract is in the image |
+| Database, Auth, private file storage | **Supabase** | row-level security; bucket `qr` is private |
 
-## One-time GitHub setup
-1. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-   Note: GitHub Pages on a *private* repository requires a paid GitHub plan.
+Customer payment links look like `https://<owner>.github.io/<repo>/#/pay/<token>`.
+Keep local, staging and production in **separate** Supabase projects and Railway services; never share secrets.
+
+## Deploy order (first time)
+Do these in order: later steps need values from earlier ones.
+
+### 1. Supabase
+1. Create a project. Note the **project ref** (the `abcd1234` in `https://abcd1234.supabase.co`).
+2. **Project Settings → Database → Connection string → _Session pooler_** (IPv4, port 5432). Use this as `DATABASE_URL`
+   (replace `[YOUR-PASSWORD]`). Railway has no IPv6, so the *direct* connection will not work; do **not** use the
+   *transaction* pooler (port 6543).
+3. **Project Settings → API:** copy `Project URL`, the `anon` key (public) and the `service_role` key (**secret, backend only**).
+4. **Authentication → Sign In / Providers → Email:** enable email sign-ups, **Confirm email = ON**, **minimum password length = 12**.
+5. **Authentication → SMTP:** configure a real SMTP sender (Resend, Brevo, …). Supabase's built-in mailer is limited to a
+   couple of emails per hour, which will block sign-up confirmation and password reset in real use.
+6. **Authentication → URL Configuration** (after step 3 below you know the Pages address):
+   *Site URL* = `https://<owner>.github.io/<repo>/` and *Redirect URLs* =
+   `https://<owner>.github.io/<repo>/#/login?confirmed=1` and `https://<owner>.github.io/<repo>/#/reset-password`.
+7. **Storage → New bucket** named `qr`, **Private** (no public policy). Logos and QR codes live here.
+8. JWT: new projects sign tokens with asymmetric keys. `SUPABASE_JWKS_URL` =
+   `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json`, `JWT_ISSUER` = `https://<ref>.supabase.co/auth/v1`.
+   (Older projects: set `SUPABASE_JWT_SECRET` from **Project Settings → API → JWT Secret** instead.)
+
+### 2. Railway (API)
+1. **New Project → Deploy from GitHub repo →** `aurasmart/collection-management`.
+2. Service **Settings → Source → Root Directory = `apps/api`** (it then finds `Dockerfile` and `railway.json`).
+3. **Variables** (names only here; values are yours):
+
+   | Variable | Value |
+   |---|---|
+   | `APP_ENV` | `production` |
+   | `DATABASE_URL` | the Session pooler string from step 1.2 |
+   | `CORS_ORIGINS` | the Pages **origin only**: `https://<owner>.github.io` (no path, no trailing slash) |
+   | `SUPABASE_URL` | `https://<ref>.supabase.co` |
+   | `SUPABASE_SERVICE_ROLE_KEY` | the `service_role` key (secret) |
+   | `SUPABASE_JWKS_URL`, `JWT_ISSUER` | see step 1.8 |
+   | `STORAGE_BACKEND` | `supabase` |
+   | `QR_BUCKET` | `qr` |
+   | `TOKEN_ENC_KEY` | `python3 -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"` |
+   | `TOKEN_HMAC_SECRET` | `python3 -c "import secrets;print(secrets.token_hex(32))"` |
+   | `OCR_ENABLED` | `true` |
+   | `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | optional: private Google Sheets only (set both or neither) |
+
+4. **Settings → Networking → Generate Domain.** That is your API URL, e.g. `https://collections-api.up.railway.app`.
+5. Deploy. Railway builds the image, runs `alembic upgrade head` as the **pre-deploy command**, then health-checks `/healthz`.
+
+### 3. GitHub (web)
+1. **Settings → Pages → Source: GitHub Actions.** (A *private* repository needs a paid GitHub plan for Pages; otherwise make the
+   repository public. No secrets are stored in it.)
 2. **Settings → Secrets and variables → Actions → Variables** (public values only):
-   `VITE_API_URL`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_PUBLIC_APP_URL`, `VITE_BASE_PATH`
-   (`/` for a custom domain; `/<repo>/` for `user.github.io/<repo>`).
-3. **Settings → Code security**: enable *Secret scanning* and **Push protection**, Dependabot alerts.
-4. **Settings → Branches**: protect `main` (PR + passing `CI` required).
-5. (Optional) custom domain for Pages, "Enforce HTTPS".
-The `CI` workflow also runs gitleaks; locally: `pre-commit install` (uses `.pre-commit-config.yaml`).
+   `VITE_API_URL` = the Railway URL, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (the **anon** key, never the service key).
+   `VITE_BASE_PATH` and `VITE_PUBLIC_APP_URL` default to `/<repo>/` and `https://<owner>.github.io/<repo>` (set them only for a
+   custom domain: `/` and the full URL).
+3. **Actions → Deploy web to GitHub Pages → Run workflow.**
 
-## Supabase
-- Create the project; copy the connection string to Render as `DATABASE_URL` (backend-only).
-- **Authentication → Providers:** email+password only; **disable sign-ups** (employers are operator-provisioned, ADR 0003 A6).
-- **Settings → API:** the migration revokes `anon`/`authenticated` access to every table; additionally disable the Data API if not needed.
-- Auth URL configuration: add the Pages URL as a redirect URL (PKCE flow; see ADR 0002 on hash routing).
-- JWT: set `SUPABASE_JWKS_URL` (or `SUPABASE_JWT_SECRET`) and `JWT_ISSUER` on Render.
-- Run migrations with the same DB user the API uses: `alembic upgrade head` (Render runs it as `preDeployCommand`).
-  The migration creates the `app_rls` role and grants it to the migrating user.
+### 4. Verify
+```bash
+infra/smoke-test.sh https://<railway-domain> https://<owner>.github.io/<repo>
+```
+Then in the browser: open the app → **Sign up** → confirm the email → sign in → Company profile → import a file → generate a
+payment page → open it in a private window.
 
-### Phase 1 Supabase settings (required)
-- **Authentication → URL configuration:** *Site URL* = the app URL; *Redirect URLs* must include exactly the reset target,
-  e.g. `https://app.example.com/#/reset-password` (and `http://localhost:5173/#/reset-password` for local dev).
-- **Authentication → Providers → Email:** disable sign-ups ("Allow new users to sign up" off); set minimum password length to 12
-  (the app enforces 12 on the reset form and in provisioning).
-- **Storage:** create a **private** bucket named `qr` (no public access, no public policies). The API accesses it with the
-  service-role key; browsers never receive storage URLs.
-- **Backend env on Render:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (backend only), `STORAGE_BACKEND=supabase`,
-  `SUPABASE_JWKS_URL` (or `SUPABASE_JWT_SECRET`), `JWT_ISSUER`, `REAUTH_MAX_AGE_SECONDS` (default 300).
-- **Provisioning an employer:** run `uv run python -m app.provisioning create …` from `apps/api` with the same env.
-- Password-reset links must be opened in the **same browser** that requested them (PKCE verifier lives in that browser's storage);
-  opening one elsewhere consumes it and a new link is needed.
+## Creating an employer by hand (operator)
+From a trusted machine with the production `DATABASE_URL`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`:
+`cd apps/api && uv run python -m app.provisioning create --full-name "…" --company "…" --email …` (prompts for the password).
 
-## Render (backend + worker)
-- New → Blueprint → select `infra/render.yaml`. Fill every `sync: false` variable in the dashboard
-  (`DATABASE_URL`, `CORS_ORIGINS` = exactly the Pages origin, JWT settings, `TOKEN_ENC_KEY`, `TOKEN_HMAC_SECRET`, …).
-- Starter instance types are required for the worker and `preDeployCommand`.
-- Deploys are triggered from CI/manual (`autoDeployTrigger: off`).
+## Updating
+Push to `main`: Railway redeploys the API (and migrates first); the web workflow redeploys Pages when `apps/web/**` changes.
+A migration that fails stops the deploy, and the previous version keeps serving.
 
-## Key rotation (token crypto)
-`TOKEN_ENC_KEY_ID` labels the active key. Rotation procedure is implemented with the payment-request phase (Phase 4).
+## Rollback
+Railway → Deployments → redeploy the previous successful deployment. Migrations are forward-only: write a new migration to undo one.
 
-## Not yet implemented (by design in Phase 0)
-Import pipeline (Phase 2), payment requests/public page (Phase 4), retention job (Phase 7).
+## Secrets
+Only `anon` (public) values go to GitHub. `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `TOKEN_*` and Google keys exist **only**
+in Railway. Turn on GitHub secret scanning and push protection. Rotating the service-role key = update it in Railway and redeploy.
+
+## Not done by design
+Background workers, Redis, automated payment verification, automated WhatsApp/SMS (see ADR 0006).

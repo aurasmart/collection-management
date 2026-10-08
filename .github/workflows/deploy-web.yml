@@ -38,8 +38,9 @@ jobs:
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
-          VITE_PUBLIC_APP_URL: ${{ vars.VITE_PUBLIC_APP_URL }}
-          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || '/' }}
+          # Defaults suit https://<owner>.github.io/<repo>/ ; set the variables for a custom domain ('/' and its URL).
+          VITE_PUBLIC_APP_URL: ${{ vars.VITE_PUBLIC_APP_URL || format('https://{0}.github.io/{1}', github.repository_owner, github.event.repository.name) }}
+          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || format('/{0}/', github.event.repository.name) }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/web/dist
