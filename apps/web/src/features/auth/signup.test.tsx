@@ -36,6 +36,12 @@ async function open() {
 beforeEach(() => fake.reset())
 
 describe('sign up page', () => {
+  it('shows the Latigid logo and the product name', async () => {
+    await open()
+    expect(screen.getByRole('img', { name: 'Latigid' })).toBeInTheDocument()
+    expect(screen.getByText('Collection Management')).toBeInTheDocument()
+  })
+
   it('renders the short registration form in the same card as sign in', async () => {
     await open()
     for (const l of [

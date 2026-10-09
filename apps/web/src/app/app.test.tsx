@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NAV_ITEMS } from '@/app/shell/nav'
 import { fake } from '@/test/fake-supabase'
@@ -49,6 +49,16 @@ describe('App shell (signed in)', () => {
     expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('aria-current', 'page')
     expect(await screen.findByTitle('Workspace')).toHaveTextContent('Acme Traders')
     expect(screen.getByRole('button', { name: /account menu/i })).toBeInTheDocument()
+  })
+
+  it('shows the Latigid logo and the company name above "Collection Management" in the header', async () => {
+    mockApi(healthy())
+    renderApp('/')
+    const header = await screen.findByRole('banner')
+    expect(within(header).getByRole('img', { name: 'Latigid' })).toBeInTheDocument()
+    expect(await within(header).findByTitle('Workspace')).toHaveTextContent('Acme Traders')
+    expect(within(header).getByText('Collection Management')).toBeInTheDocument()
+    expect(within(header).queryByText(/^Collections$/)).not.toBeInTheDocument()
   })
 
   it('marks the active section', async () => {

@@ -41,9 +41,9 @@ export default defineConfig(({ mode }) => {
       cspPlugin(origins),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon.svg'],
+        includeAssets: ['favicon-32.png', 'apple-touch-icon.png'],
         manifest: {
-          name: 'Collections',
+          name: 'Collection Management',
           short_name: 'Collections',
           description: 'Collect what you are owed.',
           start_url: '.',

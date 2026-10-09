@@ -5,6 +5,7 @@ import { AccountMenu } from '@/app/shell/AccountMenu'
 import { NAV_ITEMS } from '@/app/shell/nav'
 import { useMe } from '@/features/auth/useMe'
 import { getOnboarding, setOnboarding } from '@/features/onboarding/onboarding'
+import { BrandMark } from '@/components/BrandMark'
 import { routes } from '@/lib/routes'
 import { useCompanyProfile } from '@/features/settings/companyApi'
 
@@ -42,12 +43,13 @@ export function AppShell() {
       </a>
 
       <header className="sticky top-0 z-30 flex h-14 items-center border-b border-line bg-surface px-4 sm:pl-[calc(72px+1rem)] lg:pl-[calc(15rem+1.5rem)]">
-        <span className="text-lg font-semibold">Collections</span>
-        {workspace && (
-          <span className="ml-3 hidden truncate text-ink-2 sm:inline" title="Workspace">
-            {workspace}
+        <BrandMark className="size-10 shrink-0" />
+        <div className="ml-3 flex min-w-0 flex-col leading-tight">
+          <span className="truncate font-semibold" title="Workspace">
+            {workspace ?? 'Collection Management'}
           </span>
-        )}
+          {workspace && <span className="truncate text-xs text-ink-2">Collection Management</span>}
+        </div>
         <div className="ml-auto">
           <AccountMenu />
         </div>
