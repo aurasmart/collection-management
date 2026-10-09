@@ -11,7 +11,8 @@ send customers a secure payment-instructions link → record payments.
 3. Open a customer → **Generate Payment Page** → **Copy Link**, **Send on WhatsApp** or **Send SMS** (plain deep links).
 4. The customer opens the link (no login) and sees the amount plus your UPI ID, your **general company QR** (set in Settings,
    never generated per customer) and bank details. They pay outside the app.
-5. You click **Mark as Paid** (or **Mark as Unpaid** to correct it). The **Dashboard** shows outstanding, pending customers, paid and totals.
+5. You click **Mark as Paid** (or **Mark as Unpaid** to correct it). The Collections page can be sorted (date, amount, name),
+   filtered (overdue, due date, amount, added date, payment page, phone) and customers can be **deleted** one by one or in bulk. The **Dashboard** shows outstanding, pending customers, paid and totals.
 
 No payment gateway, no UPI API, no automatic payment checking. Set your UPI ID / QR / bank details first under **Settings**.
 

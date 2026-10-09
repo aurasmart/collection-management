@@ -15,7 +15,9 @@ An employer (India, INR) manages money owed to them:
 5. **Collections**: each customer is a collection (*Pending → Paid*). Generate a **payment page** link and send it by hand
    (copy, WhatsApp or SMS deep link).
 6. The customer opens `/#/pay/<token>` with no login and sees the amount and how to pay. They pay outside the app.
-7. The employer clicks **Mark as Paid**. The **Dashboard** shows outstanding, pending, paid and totals.
+7. The employer clicks **Mark as Paid**. The Collections list can be sorted and filtered, and customers can be deleted (single or
+   bulk, audited; the payment link then stops working).
+8. The **Dashboard** shows outstanding, overdue, due-soon, collection rate, biggest balances and recent activity.
 
 Deliberately **not** built: payment gateway, UPI APIs, automatic payment checking, automated WhatsApp/SMS, partial
 payments, per-customer QR codes, AI extraction (ADR 0006).
