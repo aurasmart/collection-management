@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowUpDown, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { Alert, Button, Card, EmptyState, Skeleton } from '@/components/ui'
 import { DeleteDialog } from '@/features/collections/DeleteDialog'
 import { MarkDialog } from '@/features/collections/MarkDialog'
@@ -83,7 +83,15 @@ function chipsFor(f: CollectionFilters): Array<{ key: keyof CollectionFilters; l
 }
 
 export function CollectionsPage() {
-  const [filters, setFilters] = useState<CollectionFilters>(NO_FILTERS)
+  // Links from the dashboard can open the list already narrowed (?overdue=1, ?status=PENDING).
+  const [params] = useSearchParams()
+  const [filters, setFilters] = useState<CollectionFilters>(() => ({
+    ...NO_FILTERS,
+    overdue: params.get('overdue') === '1',
+    status: ['PENDING', 'PAID'].includes(params.get('status') ?? '')
+      ? (params.get('status') as StatusFilter)
+      : 'ALL',
+  }))
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [panelOpen, setPanelOpen] = useState(false)

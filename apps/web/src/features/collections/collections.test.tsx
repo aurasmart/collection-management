@@ -430,6 +430,15 @@ describe('Collections sort, filters and delete', () => {
     expect(screen.queryByRole('list', { name: 'Active filters' })).not.toBeInTheDocument()
   })
 
+  it('opens already narrowed when linked from the dashboard (?overdue=1)', async () => {
+    const api = open('/collections?overdue=1', {
+      'GET /api/v1/collections': () => list([item()]),
+    })
+    await screen.findByRole('table')
+    expect(lastParams(api).get('overdue')).toBe('true')
+    expect(screen.getByRole('button', { name: 'Overdue' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('says nothing matches when a filter returns no customers', async () => {
     open('/collections', { 'GET /api/v1/collections': () => list([]) })
     await screen.findByText('No collections yet')
