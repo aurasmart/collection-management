@@ -1,81 +1,47 @@
-# SUPERSEDED: production runs on Railway (apps/api/railway.json, see docs/runbook.md). Kept for reference only.
-# Render Blueprint (not applied automatically). Create from this file in the Render dashboard.
-# Secrets are declared with `sync: false`: Render asks for them; they are never stored in git.
-# NOTE: preDeployCommand and background workers require paid instance types on Render.
+# Render Blueprint for the API (optional: you can create the same service by hand in the dashboard, see docs/runbook.md).
+# Secrets use `sync: false`: Render asks for them in the dashboard and they are never stored in git.
+#
+# FREE plan: the service sleeps after ~15 min idle (first request then takes ~1 minute) and Render's
+# `preDeployCommand` is not available, so migrations run at start-up (dockerCommand below).
+# STARTER plan (recommended for real use): set `plan: starter`, delete `dockerCommand`, and use
+# `preDeployCommand: alembic upgrade head` instead.
 services:
   - type: web
     name: collections-api
     runtime: docker
     dockerfilePath: ./apps/api/Dockerfile
     dockerContext: ./apps/api
-    plan: starter
+    plan: free
     region: singapore
     healthCheckPath: /healthz
-    autoDeployTrigger: "off"          # deployed by GitHub Actions via deploy hook
-    preDeployCommand: alembic upgrade head
+    autoDeployTrigger: commit
+    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"
     envVars:
       - key: APP_ENV
         value: production
-      - key: DATABASE_URL
-        sync: false
-      - key: CORS_ORIGINS
-        sync: false                    # e.g. https://app.example.com
-      - key: SUPABASE_JWKS_URL
-        sync: false
-      - key: SUPABASE_JWT_SECRET
-        sync: false
-      - key: JWT_ISSUER
-        sync: false
-      - key: TOKEN_ENC_KEY
-        sync: false
-      - key: TOKEN_ENC_KEY_ID
-        value: k1
-      - key: TOKEN_HMAC_SECRET
-        sync: false
-      - key: AI_ENABLED
-        value: "false"
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: AI_MONTHLY_COST_CAP_USD
-        value: "0"
+      - key: STORAGE_BACKEND
+        value: supabase
+      - key: QR_BUCKET
+        value: qr
       - key: OCR_ENABLED
         value: "true"                  # scanned PDFs (Tesseract is installed in the image)
-      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
-        sync: false                    # optional: only for importing PRIVATE Google Sheets
-      - key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
-        sync: false                    # optional, secret: set together with the email
-
-  - type: worker
-    name: collections-worker
-    runtime: docker
-    dockerfilePath: ./apps/api/Dockerfile
-    dockerContext: ./apps/api
-    dockerCommand: python -m app.worker
-    plan: starter
-    region: singapore
-    autoDeployTrigger: "off"
-    envVars:
-      - key: APP_ENV
-        value: production
       - key: DATABASE_URL
-        sync: false
+        sync: false                    # Supabase *Session pooler* string (port 5432)
       - key: CORS_ORIGINS
-        sync: false                    # e.g. https://app.example.com
-      - key: SUPABASE_JWKS_URL
+        sync: false                    # the Pages origin only, e.g. https://aurasmart.github.io
+      - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_JWT_SECRET
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false                    # secret, backend only
+      - key: SUPABASE_JWKS_URL
         sync: false
       - key: JWT_ISSUER
         sync: false
       - key: TOKEN_ENC_KEY
         sync: false
-      - key: TOKEN_ENC_KEY_ID
-        value: k1
       - key: TOKEN_HMAC_SECRET
         sync: false
-      - key: AI_ENABLED
-        value: "false"
-      - key: ANTHROPIC_API_KEY
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false                    # optional: private Google Sheets only (set both or neither)
+      - key: GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY
         sync: false
-      - key: AI_MONTHLY_COST_CAP_USD
-        value: "0"

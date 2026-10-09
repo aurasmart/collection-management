@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Post-deploy smoke test (public checks only; needs no credentials).
-#   infra/smoke-test.sh https://<railway-domain> https://<owner>.github.io/<repo>
+#   infra/smoke-test.sh https://<render-url> https://<owner>.github.io/<repo>
 set -u
 API="${1:?API url}"; APP="${2:?app url}"; ORIGIN="$(printf '%s' "$APP" | sed -E 's#(https?://[^/]+).*#\1#')"
 ok=0; bad=0

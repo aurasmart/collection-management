@@ -4,7 +4,8 @@ Upload a spreadsheet/PDF/Word file of amounts you are owed → review the extrac
 send customers a secure payment-instructions link → record payments.
 **Status: the simple payment flow is built on top of the Phase 0 + 1 foundation** (see `docs/adr/0006-simple-payment-flow-mvp.md`):
 
-1. Sign in → **Upload** an Excel (.xlsx) or CSV file (Customer Name, Phone Number, Amount Due, Reference, Due Date optional).
+1. Sign up (or sign in) → **Upload** an Excel (.xlsx/.xls), CSV, PDF (scanned PDFs are read with OCR) or Google Sheet. Columns are
+   detected automatically and you confirm the mapping (Customer Name, Amount Due, Phone, Reference, Due Date optional).
    A sample is at `/sample-customers.csv`.
 2. Check and fix the rows, then **Import** → customers appear in **Collections** as *Pending*.
 3. Open a customer → **Generate Payment Page** → **Copy Link**, **Send on WhatsApp** or **Send SMS** (plain deep links).
@@ -14,6 +15,7 @@ send customers a secure payment-instructions link → record payments.
 
 No payment gateway, no UPI API, no automatic payment checking. Set your UPI ID / QR / bank details first under **Settings**.
 
+New here? Start with `docs/development-guide.md` (architecture, code map, deployment lessons).
 Authoritative design docs: `docs/stage-1-system-design.md`, `docs/stage-2-ui-ux.md`, `docs/adr/`. Rules for contributors/agents: `CLAUDE.md`.
 
 ## Prerequisites
@@ -99,11 +101,12 @@ npm run format:check && npm run lint && npm run typecheck && npm test && npm run
 apps/web          React + TS + Vite PWA (hash router)
 apps/api          FastAPI API + worker, Alembic migrations, tests, Dockerfile
 packages/api-types   OpenAPI contract + generated TypeScript types
-infra             docker-compose (local) and render.yaml (backend + worker)
-docs              Stage 1/2/3 documents, ADRs, runbook
+infra             docker-compose (local), render.yaml (API on Render), smoke-test.sh
+docs              Stage 1/2/3 documents, ADRs, runbook, development guide
 .github           CI, GitHub Pages deploy, Dependabot
 ```
 
 ## Deployment
-See `docs/runbook.md` (GitHub Pages variables, Render blueprint, Supabase settings, secret scanning).
+Frontend on **GitHub Pages**, API on **Render** (Docker), database/auth/storage on **Supabase**. See `docs/runbook.md`
+(step-by-step setup, variables, rollback) and run `infra/smoke-test.sh <api-url> <site-origin>` to verify a deployment.
 No secrets are committed: configuration is via environment variables (`apps/api/.env.example`, `apps/web/.env.example`).
