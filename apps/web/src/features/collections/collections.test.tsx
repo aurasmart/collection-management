@@ -41,6 +41,11 @@ const dash = () =>
     recent: [],
   })
 
+const lastParams = (api: ReturnType<typeof mockApi>) => {
+  const calls = api.called('GET /api/v1/collections')
+  return new URL(calls[calls.length - 1]!.request.url).searchParams
+}
+
 function open(path: string, routes: Parameters<typeof mockApi>[0]) {
   fake.setSession('o@acme.test')
   const api = mockApi({
@@ -383,5 +388,130 @@ describe('Customer detail', () => {
       [`GET /api/v1/collections/${ID}`]: () => json({ detail: 'Customer not found' }, 404),
     })
     expect(await screen.findByText('Customer not found')).toBeInTheDocument()
+  })
+})
+
+describe('Collections sort, filters and delete', () => {
+  it('sorts on the server and resets to the first page', async () => {
+    const api = open('/collections', { 'GET /api/v1/collections': () => list([item()]) })
+    await screen.findByRole('table')
+    expect(lastParams(api).get('sort')).toBe('created_desc')
+    await userEvent.selectOptions(screen.getByLabelText('Sort by'), 'due_asc')
+    await waitFor(() => expect(lastParams(api).get('sort')).toBe('due_asc'))
+    await userEvent.selectOptions(screen.getByLabelText('Sort by'), 'amount_desc')
+    await waitFor(() => expect(lastParams(api).get('sort')).toBe('amount_desc'))
+  })
+
+  it('applies the overdue chip and the filter panel, shows chips and clears them', async () => {
+    const api = open('/collections', { 'GET /api/v1/collections': () => list([item()]) })
+    await screen.findByRole('table')
+    await userEvent.click(screen.getByRole('button', { name: 'Overdue' }))
+    await waitFor(() => expect(lastParams(api).get('overdue')).toBe('true'))
+
+    await userEvent.click(screen.getByRole('button', { name: /Filters/ }))
+    await userEvent.type(screen.getByLabelText('Amount from (₹)'), '1000')
+    await userEvent.selectOptions(screen.getByLabelText('Phone number'), 'no')
+    await userEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
+    await waitFor(() => {
+      expect(lastParams(api).get('min_amount')).toBe('1000')
+      expect(lastParams(api).get('has_phone')).toBe('no')
+    })
+    const chips = screen.getByRole('list', { name: 'Active filters' })
+    expect(within(chips).getByText('Amount from ₹1,000.00')).toBeInTheDocument()
+    expect(within(chips).getByText('No phone number')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove filter: No phone number' }))
+    await waitFor(() => expect(lastParams(api).get('has_phone')).toBeNull())
+    await userEvent.click(screen.getByRole('button', { name: 'Clear all' }))
+    await waitFor(() => {
+      expect(lastParams(api).get('overdue')).toBeNull()
+      expect(lastParams(api).get('min_amount')).toBeNull()
+    })
+    expect(screen.queryByRole('list', { name: 'Active filters' })).not.toBeInTheDocument()
+  })
+
+  it('says nothing matches when a filter returns no customers', async () => {
+    open('/collections', { 'GET /api/v1/collections': () => list([]) })
+    await screen.findByText('No collections yet')
+  })
+
+  it('deletes one customer after a confirmation, and cancel deletes nothing', async () => {
+    let rows = [item()]
+    const api = open('/collections', {
+      'GET /api/v1/collections': () => list(rows),
+      [`DELETE /api/v1/collections/${ID}`]: () => {
+        rows = []
+        return new Response(null, { status: 204 })
+      },
+    })
+    await screen.findByRole('table')
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Rahul Sharma' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete Rahul Sharma?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(api.called(`DELETE /api/v1/collections/${ID}`)).toHaveLength(0)
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Rahul Sharma' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete customer' }),
+    )
+    expect(await screen.findByText('Rahul Sharma deleted')).toBeInTheDocument()
+    expect(await screen.findByText('No collections yet')).toBeInTheDocument()
+  })
+
+  it('selects several customers and deletes them together, warning about paid ones', async () => {
+    const a = item({ id: 'a1', customer_name: 'Asha' })
+    const b = item({ id: 'b2', customer_name: 'Bimal', status: 'PAID' })
+    let rows = [a, b]
+    const api = open('/collections', {
+      'GET /api/v1/collections': () => list(rows),
+      'POST /api/v1/collections/delete': () => {
+        rows = []
+        return json({ deleted: 2 })
+      },
+    })
+    await screen.findByRole('table')
+    await userEvent.click(screen.getByLabelText('Select all on this page'))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Delete selected' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete 2 customers?' })
+    expect(within(dialog).getByText(/1 of them is marked Paid/)).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete 2 customers' }))
+    expect(await screen.findByText('2 customers deleted')).toBeInTheDocument()
+    expect(api.called('POST /api/v1/collections/delete')).toHaveLength(1)
+    const body = (await api
+      .called('POST /api/v1/collections/delete')[0]!
+      .request.clone()
+      .json()) as {
+      ids: string[]
+    }
+    expect(body.ids).toEqual(['a1', 'b2'])
+  })
+
+  it('keeps everything when a delete fails', async () => {
+    open('/collections', {
+      'GET /api/v1/collections': () => list([item()]),
+      [`DELETE /api/v1/collections/${ID}`]: () => json({}, 500),
+    })
+    await screen.findByRole('table')
+    await userEvent.click(screen.getByRole('button', { name: 'Delete Rahul Sharma' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete customer' }),
+    )
+    expect(await screen.findByText(/Couldn't delete\. Nothing was removed/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Rahul Sharma', hidden: true })).toBeInTheDocument()
+  })
+
+  it('deletes from the customer page and returns to the list', async () => {
+    open(`/collections/${ID}`, {
+      [`GET /api/v1/collections/${ID}`]: () => json(detail()),
+      [`DELETE /api/v1/collections/${ID}`]: () => new Response(null, { status: 204 }),
+      'GET /api/v1/collections': () => list([]),
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete customer' }),
+    )
+    expect(await screen.findByText('Rahul Sharma deleted')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Collections' })).toBeInTheDocument()
   })
 })

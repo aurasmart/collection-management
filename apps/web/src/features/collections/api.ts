@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { components } from '@collections/api-types'
+import type { components, paths } from '@collections/api-types'
 import { api, fieldErrors, type ApiFieldError } from '@/lib/api'
 import { useAuth } from '@/features/auth/AuthProvider'
 
@@ -10,18 +10,61 @@ export type StatusFilter = 'ALL' | 'PENDING' | 'PAID'
 
 export const PAGE_SIZE = 50
 
-export function useCollections(status: StatusFilter, q: string, page: number) {
+export type Sort = NonNullable<paths['/api/v1/collections']['get']['parameters']['query']>['sort']
+
+/** Everything the list can be narrowed or ordered by. Empty strings mean "not set". */
+export interface CollectionFilters {
+  status: StatusFilter
+  q: string
+  sort: NonNullable<Sort>
+  overdue: boolean
+  dueFrom: string
+  dueTo: string
+  minAmount: string
+  maxAmount: string
+  createdFrom: string
+  createdTo: string
+  paymentPage: '' | 'yes' | 'no'
+  hasPhone: '' | 'yes' | 'no'
+}
+
+export const NO_FILTERS: CollectionFilters = {
+  status: 'ALL',
+  q: '',
+  sort: 'created_desc',
+  overdue: false,
+  dueFrom: '',
+  dueTo: '',
+  minAmount: '',
+  maxAmount: '',
+  createdFrom: '',
+  createdTo: '',
+  paymentPage: '',
+  hasPhone: '',
+}
+
+export function useCollections(f: CollectionFilters, page: number) {
   const { status: auth } = useAuth()
   return useQuery({
-    queryKey: ['collections', status, q, page],
+    queryKey: ['collections', f, page],
     enabled: auth === 'signed-in',
     placeholderData: (prev) => prev,
     queryFn: async () => {
       const { data, error } = await api.GET('/api/v1/collections', {
         params: {
           query: {
-            status: status === 'ALL' ? undefined : status,
-            q: q || undefined,
+            status: f.status === 'ALL' ? undefined : f.status,
+            q: f.q || undefined,
+            sort: f.sort,
+            overdue: f.overdue || undefined,
+            due_from: f.dueFrom || undefined,
+            due_to: f.dueTo || undefined,
+            min_amount: f.minAmount || undefined,
+            max_amount: f.maxAmount || undefined,
+            created_from: f.createdFrom || undefined,
+            created_to: f.createdTo || undefined,
+            payment_page: f.paymentPage || undefined,
+            has_phone: f.hasPhone || undefined,
             limit: PAGE_SIZE,
             offset: page * PAGE_SIZE,
           },
@@ -58,6 +101,30 @@ function useRefreshAll() {
     void qc.invalidateQueries({ queryKey: ['collections'] })
     void qc.invalidateQueries({ queryKey: ['dashboard'] })
   }
+}
+
+/** Delete one customer (DELETE) or several at once (all or nothing). The list and dashboard refresh. */
+export function useDeleteCollections() {
+  const qc = useQueryClient()
+  const refresh = useRefreshAll()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      if (ids.length === 1) {
+        const { response } = await api.DELETE('/api/v1/collections/{collection_id}', {
+          params: { path: { collection_id: ids[0]! } },
+        })
+        if (!response.ok) throw new Error('Delete failed')
+        return 1
+      }
+      const { data } = await api.POST('/api/v1/collections/delete', { body: { ids } })
+      if (!data) throw new Error('Delete failed')
+      return data.deleted
+    },
+    onSuccess: (_n, ids) => {
+      refresh()
+      ids.forEach((id) => qc.removeQueries({ queryKey: ['collection', id] }))
+    },
+  })
 }
 
 type Action = 'payment-page' | 'mark-paid' | 'mark-unpaid'

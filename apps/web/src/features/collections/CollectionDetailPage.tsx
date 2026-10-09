@@ -1,7 +1,16 @@
 import { useState } from 'react'
-import { Copy, ExternalLink, Link2, MessageCircle, MessageSquare, Pencil } from 'lucide-react'
-import { Link, useParams } from 'react-router'
+import {
+  Copy,
+  ExternalLink,
+  Link2,
+  MessageCircle,
+  MessageSquare,
+  Pencil,
+  Trash2,
+} from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router'
 import { Alert, Button, Card, Skeleton, useToast } from '@/components/ui'
+import { DeleteDialog } from '@/features/collections/DeleteDialog'
 import { EditDialog } from '@/features/collections/EditDialog'
 import { MarkDialog } from '@/features/collections/MarkDialog'
 import { StatusPill } from '@/features/collections/StatusPill'
@@ -21,6 +30,8 @@ export function CollectionDetailPage() {
   const generate = useCollectionAction(id, 'payment-page')
   const { toast } = useToast()
   const [editing, setEditing] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const navigate = useNavigate()
   const [marking, setMarking] = useState<'paid' | 'unpaid' | null>(null)
 
   if (query.isPending) {
@@ -79,6 +90,10 @@ export function CollectionDetailPage() {
           <Button variant="secondary" disabled={paid} onClick={() => setEditing(true)}>
             <Pencil className="size-5" aria-hidden="true" />
             Edit
+          </Button>
+          <Button variant="destructive-outline" onClick={() => setDeleting(true)}>
+            <Trash2 className="size-5" aria-hidden="true" />
+            Delete
           </Button>
           {paid && <span className="self-center text-sm text-ink-2">Mark as unpaid to edit.</span>}
         </div>
@@ -211,6 +226,12 @@ export function CollectionDetailPage() {
       </Card>
 
       <EditDialog customer={c} open={editing} onOpenChange={setEditing} />
+      <DeleteDialog
+        customers={[c]}
+        open={deleting}
+        onOpenChange={setDeleting}
+        onDeleted={() => void navigate(routes.collections)}
+      />
       {marking && (
         <MarkDialog
           id={c.id}
