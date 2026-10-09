@@ -6,6 +6,7 @@ import json
 import secrets
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -23,6 +24,29 @@ Ctx = Annotated[EmployerContext, Depends(get_employer_context)]
 User = Annotated[AuthenticatedUser, Depends(require_user)]
 
 Status = Literal["PENDING", "PAID"]
+Sort = Literal[
+    "created_desc",
+    "created_asc",
+    "due_asc",
+    "due_desc",
+    "amount_desc",
+    "amount_asc",
+    "name_asc",
+    "name_desc",
+]
+YesNo = Literal["yes", "no"]
+
+# Whitelist: the `sort` query value only ever selects one of these constant fragments.
+_ORDER = {
+    "created_desc": "c.created_at DESC",
+    "created_asc": "c.created_at ASC",
+    "due_asc": "c.due_date ASC NULLS LAST",
+    "due_desc": "c.due_date DESC NULLS LAST",
+    "amount_desc": "c.amount_due DESC",
+    "amount_asc": "c.amount_due ASC",
+    "name_asc": "lower(cu.name) ASC",
+    "name_desc": "lower(cu.name) DESC",
+}
 
 _SELECT = (
     "SELECT c.id, cu.name AS customer_name, cu.phone, c.amount_due, c.due_date, c.reference, "
@@ -47,6 +71,7 @@ class CollectionRow(BaseModel):
     reference: str | None
     status: Status
     has_payment_page: bool
+    created_at: datetime
 
 
 class CollectionList(BaseModel):
@@ -57,8 +82,16 @@ class CollectionList(BaseModel):
 class CollectionDetail(CollectionRow):
     # The payment-page token, only ever returned to the signed-in owner of this record.
     payment_token: str | None
-    created_at: datetime
     updated_at: datetime
+
+
+class DeleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+
+
+class DeleteResult(BaseModel):
+    deleted: int
 
 
 class CollectionEdit(BaseModel):
@@ -80,13 +113,12 @@ def _row(r: Any) -> dict[str, Any]:
         "reference": r.reference,
         "status": r.status,
         "has_payment_page": r.payment_token is not None,
+        "created_at": r.created_at,
     }
 
 
 def _detail(r: Any) -> CollectionDetail:
-    return CollectionDetail(
-        **_row(r), payment_token=r.payment_token, created_at=r.created_at, updated_at=r.updated_at
-    )
+    return CollectionDetail(**_row(r), payment_token=r.payment_token, updated_at=r.updated_at)
 
 
 def _load(db: Session, collection_id: uuid.UUID, *, lock: bool = False) -> Any:
@@ -120,6 +152,16 @@ def list_collections(
     ctx: Ctx,
     status_filter: Annotated[Status | None, Query(alias="status")] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
+    sort: Sort = "created_desc",
+    overdue: bool = False,
+    due_from: date | None = None,
+    due_to: date | None = None,
+    min_amount: Annotated[Decimal | None, Query(ge=0, max_digits=14, decimal_places=2)] = None,
+    max_amount: Annotated[Decimal | None, Query(ge=0, max_digits=14, decimal_places=2)] = None,
+    created_from: date | None = None,
+    created_to: date | None = None,
+    payment_page: YesNo | None = None,
+    has_phone: YesNo | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> CollectionList:
@@ -132,6 +174,36 @@ def list_collections(
         escaped = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         where.append("(cu.name ILIKE :q OR cu.phone ILIKE :q OR c.reference ILIKE :q)")
         params["q"] = f"%{escaped}%"
+    if overdue:
+        where.append("c.status = 'PENDING' AND c.due_date < CURRENT_DATE")
+    if due_from:
+        where.append("c.due_date >= :due_from")
+        params["due_from"] = due_from
+    if due_to:
+        where.append("c.due_date <= :due_to")
+        params["due_to"] = due_to
+    if min_amount is not None:
+        where.append("c.amount_due >= :min_amount")
+        params["min_amount"] = min_amount
+    if max_amount is not None:
+        where.append("c.amount_due <= :max_amount")
+        params["max_amount"] = max_amount
+    if created_from:
+        where.append("c.created_at >= :created_from")
+        params["created_from"] = created_from
+    if created_to:  # inclusive of the whole last day
+        where.append("c.created_at < CAST(:created_to AS date) + 1")
+        params["created_to"] = created_to
+    if payment_page:
+        where.append(
+            "c.payment_token IS NOT NULL" if payment_page == "yes" else "c.payment_token IS NULL"
+        )
+    if has_phone:
+        where.append(
+            "(cu.phone IS NOT NULL AND cu.phone <> '')"
+            if has_phone == "yes"
+            else "(cu.phone IS NULL OR cu.phone = '')"
+        )
     clause = " AND ".join(where)  # built only from the constant fragments above
     with tenant_session(ctx.employer_id) as db:
         count_sql = f"{_COUNT} WHERE {clause}"  # noqa: S608
@@ -139,11 +211,79 @@ def list_collections(
         rows = db.execute(
             text(
                 f"{_SELECT} WHERE {clause} "
-                "ORDER BY c.created_at DESC, c.id LIMIT :limit OFFSET :offset"
+                f"ORDER BY {_ORDER[sort]}, c.id LIMIT :limit OFFSET :offset"
             ),  # noqa: S608
             params,
         ).all()
     return CollectionList(items=[CollectionRow(**_row(r)) for r in rows], total=total)
+
+
+def _delete_collections(
+    db: Session, ctx: EmployerContext, user: AuthenticatedUser, ids: list[uuid.UUID]
+) -> int:
+    """Delete the employer's own collections and their per-row customers; other ids are skipped."""
+    deleted = 0
+    for cid in dict.fromkeys(ids):
+        row = db.execute(
+            text(f"{_SELECT} WHERE c.id = :id FOR UPDATE OF c"), {"id": cid}
+        ).one_or_none()
+        if row is None:
+            continue
+        db.execute(
+            text(
+                "UPDATE import_rows SET duplicate_of_collection_id = NULL "
+                "WHERE duplicate_of_collection_id = :id"
+            ),
+            {"id": cid},
+        )
+        customer_id = db.execute(
+            text("SELECT customer_id FROM collections WHERE id = :id"), {"id": cid}
+        ).scalar_one()
+        db.execute(text("DELETE FROM collections WHERE id = :id"), {"id": cid})
+        db.execute(
+            text(
+                "DELETE FROM customers WHERE id = :cu AND NOT EXISTS "
+                "(SELECT 1 FROM collections WHERE customer_id = :cu)"
+            ),
+            {"cu": customer_id},
+        )
+        # name and amount for the record; never the payment token
+        _audit(
+            db,
+            ctx,
+            user,
+            cid,
+            "collection_deleted",
+            {
+                "customer_name": row.customer_name,
+                "amount_due": format(row.amount_due, "f"),
+                "status": row.status,
+            },
+        )
+        deleted += 1
+    return deleted
+
+
+@router.post(
+    "/delete",
+    operation_id="deleteCollections",
+    summary="Delete several of your customers at once (all or nothing)",
+)
+def delete_collections(body: DeleteRequest, user: User, ctx: Ctx) -> DeleteResult:
+    with tenant_session(ctx.employer_id) as db:
+        return DeleteResult(deleted=_delete_collections(db, ctx, user, body.ids))
+
+
+@router.delete(
+    "/{collection_id}",
+    operation_id="deleteCollection",
+    summary="Delete one customer",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_collection(collection_id: uuid.UUID, user: User, ctx: Ctx) -> None:
+    with tenant_session(ctx.employer_id) as db:
+        _load(db, collection_id)  # 404 for a missing id (or another employer's)
+        _delete_collections(db, ctx, user, [collection_id])
 
 
 @router.get("/{collection_id}", operation_id="getCollection", summary="One customer")

@@ -120,7 +120,7 @@ def test_audit_events_are_append_only(make_tenant: MakeTenant, admin_engine: Eng
 
 def test_tenant_role_cannot_delete_financial_records(make_tenant: MakeTenant) -> None:
     a = make_tenant("a")
-    for table in ("payments", "collections", "payment_requests"):
+    for table in ("payments", "payment_requests", "notifications"):
         with pytest.raises(DBAPIError), tenant_session(a.employer_id) as s:
             s.execute(text(f"DELETE FROM {table}"))  # noqa: S608
 

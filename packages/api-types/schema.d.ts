@@ -42,6 +42,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/collections/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete several of your customers at once (all or nothing) */
+        post: operations["deleteCollections"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collections/{collection_id}": {
         parameters: {
             query?: never;
@@ -54,7 +71,8 @@ export interface paths {
         /** Edit a pending customer */
         put: operations["updateCollection"];
         post?: never;
-        delete?: never;
+        /** Delete one customer */
+        delete: operations["deleteCollection"];
         options?: never;
         head?: never;
         patch?: never;
@@ -118,7 +136,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Four simple numbers and the latest customers */
+        /** The headline numbers, a few insights and the latest customers */
         get: operations["getDashboard"];
         put?: never;
         post?: never;
@@ -541,6 +559,11 @@ export interface components {
         CollectionRow: {
             /** Amount Due */
             amount_due: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
             /** Customer Name */
             customer_name: string;
             /** Due Date */
@@ -680,12 +703,42 @@ export interface components {
         DashboardOut: {
             /** Customers */
             customers: number;
+            /**
+             * Due Soon Amount
+             * @default 0.00
+             */
+            due_soon_amount: string;
+            /**
+             * Due Soon Customers
+             * @default 0
+             */
+            due_soon_customers: number;
+            /**
+             * Overdue Amount
+             * @default 0.00
+             */
+            overdue_amount: string;
+            /**
+             * Overdue Customers
+             * @default 0
+             */
+            overdue_customers: number;
             /** Paid Amount */
             paid_amount: string;
+            /**
+             * Paid Customers
+             * @default 0
+             */
+            paid_customers: number;
             /** Pending Customers */
             pending_customers: number;
             /** Recent */
             recent: components["schemas"]["RecentRow"][];
+            /**
+             * Top Outstanding
+             * @default []
+             */
+            top_outstanding: components["schemas"]["RecentRow"][];
             /** Total Outstanding */
             total_outstanding: string;
         };
@@ -700,6 +753,16 @@ export interface components {
              * @enum {string}
              */
             order: "dmy" | "mdy";
+        };
+        /** DeleteRequest */
+        DeleteRequest: {
+            /** Ids */
+            ids: string[];
+        };
+        /** DeleteResult */
+        DeleteResult: {
+            /** Deleted */
+            deleted: number;
         };
         /** EmployerOut */
         EmployerOut: {
@@ -892,6 +955,8 @@ export interface components {
             amount_due: string;
             /** Customer Name */
             customer_name: string;
+            /** Due Date */
+            due_date?: string | null;
             /**
              * Id
              * Format: uuid
@@ -1046,6 +1111,16 @@ export interface operations {
             query?: {
                 status?: ("PENDING" | "PAID") | null;
                 q?: string | null;
+                sort?: "created_desc" | "created_asc" | "due_asc" | "due_desc" | "amount_desc" | "amount_asc" | "name_asc" | "name_desc";
+                overdue?: boolean;
+                due_from?: string | null;
+                due_to?: string | null;
+                min_amount?: number | string | null;
+                max_amount?: number | string | null;
+                created_from?: string | null;
+                created_to?: string | null;
+                payment_page?: ("yes" | "no") | null;
+                has_phone?: ("yes" | "no") | null;
                 limit?: number;
                 offset?: number;
             };
@@ -1062,6 +1137,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CollectionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCollections: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResult"];
                 };
             };
             /** @description Validation Error */
@@ -1129,6 +1237,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["CollectionDetail"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

@@ -85,6 +85,7 @@ def test_list_shows_customers_newest_first_with_search_and_status_filter(
         "reference": "INV-1",
         "status": "PENDING",
         "has_payment_page": False,
+        "created_at": first["created_at"],
     }
     assert "payment_token" not in first  # tokens are never in the list
     assert [i["customer_name"] for i in listing(client, t, q="priya")["items"]] == ["Priya Traders"]
@@ -269,6 +270,12 @@ def test_dashboard_numbers_follow_the_statuses(
         "pending_customers": 0,
         "paid_amount": "0.00",
         "customers": 0,
+        "paid_customers": 0,
+        "overdue_amount": "0.00",
+        "overdue_customers": 0,
+        "due_soon_amount": "0.00",
+        "due_soon_customers": 0,
+        "top_outstanding": [],
         "recent": [],
     }
     add(client, t, ROWS)
@@ -292,6 +299,7 @@ def test_dashboard_numbers_follow_the_statuses(
         "customer_name": "Rahul Sharma",
         "amount_due": "15000.00",
         "status": "PAID",
+        "due_date": None,
     }
     client.post(f"/api/v1/collections/{first_id(client, t, 'Rahul')}/mark-unpaid", headers=h)
     d = client.get("/api/v1/dashboard", headers=h).json()
@@ -307,3 +315,143 @@ def test_dashboard_is_per_employer_and_limited_to_ten_recent(
     db = client.get("/api/v1/dashboard", headers=bearer(b.auth_user_id)).json()
     assert da["customers"] == 12 and len(da["recent"]) == 10
     assert db["customers"] == 0 and db["recent"] == []
+
+
+MORE = [
+    {
+        "customer_name": "Zed Stores",
+        "phone": "9876543212",
+        "amount_due": "50",
+        "due_date": "01/01/2020",
+    },
+    {"customer_name": "Amit Hardware", "amount_due": "9000", "due_date": "01/01/2099"},
+]
+
+
+def names(data: dict[str, Any]) -> list[str]:
+    return [i["customer_name"] for i in data["items"]]
+
+
+def test_sorting_by_name_amount_due_date_and_added(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    t = make_employer("a")
+    add(client, t, ROWS + MORE)
+    assert names(listing(client, t, sort="name_asc"))[:2] == ["Amit Hardware", "Asha Stores"]
+    assert names(listing(client, t, sort="name_desc"))[0] == "Zed Stores"
+    assert names(listing(client, t, sort="amount_desc"))[0] == "Rahul Sharma"
+    assert names(listing(client, t, sort="amount_asc"))[0] == "Zed Stores"
+    due = names(listing(client, t, sort="due_asc"))
+    assert due[0] == "Zed Stores" and due[-1] in {"Rahul Sharma", "Asha Stores"}  # no date: last
+    assert names(listing(client, t, sort="due_desc"))[0] == "Amit Hardware"
+    assert len(names(listing(client, t, sort="created_asc"))) == 5
+    bad = client.get(
+        "/api/v1/collections", params={"sort": "name; DROP TABLE x"}, headers=bearer(t.auth_user_id)
+    )
+    assert bad.status_code == 422
+
+
+def test_filters_narrow_the_list_and_the_total(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    t = make_employer("a")
+    add(client, t, ROWS + MORE)
+    assert names(listing(client, t, overdue="true")) == ["Zed Stores"]
+    assert listing(client, t, min_amount=1000)["total"] == 3
+    assert names(listing(client, t, max_amount=100)) == ["Zed Stores"]
+    assert names(listing(client, t, due_from="2098-01-01")) == ["Amit Hardware"]
+    assert names(listing(client, t, due_to="2020-12-31")) == ["Zed Stores"]
+    assert listing(client, t, has_phone="no")["total"] == 2
+    assert listing(client, t, has_phone="yes")["total"] == 3
+    assert listing(client, t, payment_page="yes")["total"] == 0
+    client.post(
+        f"/api/v1/collections/{first_id(client, t, 'Rahul')}/payment-page",
+        headers=bearer(t.auth_user_id),
+    )
+    assert names(listing(client, t, payment_page="yes")) == ["Rahul Sharma"]
+    assert listing(client, t, payment_page="no")["total"] == 4
+    assert listing(client, t, created_from="2000-01-01", created_to="2099-12-31")["total"] == 5
+    assert listing(client, t, created_to="2000-01-01")["total"] == 0
+    both = listing(client, t, status="PENDING", min_amount=1000, sort="amount_asc", limit=1)
+    assert both["total"] == 3 and names(both) == ["Priya Traders"]
+    pid = first_id(client, t, "Zed")
+    client.post(f"/api/v1/collections/{pid}/mark-paid", headers=bearer(t.auth_user_id))
+    assert listing(client, t, overdue="true")["total"] == 0  # a paid customer is not overdue
+
+
+def test_delete_one_removes_the_customer_the_link_and_keeps_the_audit(
+    client: TestClient, make_employer: MakeEmployer, admin_engine: Engine
+) -> None:
+    t = make_employer("a")
+    add(client, t, ROWS)
+    h = bearer(t.auth_user_id)
+    cid = first_id(client, t, "Rahul")
+    token = client.post(f"/api/v1/collections/{cid}/payment-page", headers=h).json()[
+        "payment_token"
+    ]
+    assert client.get(f"/api/v1/public/pay/{token}").status_code == 200
+    assert client.delete(f"/api/v1/collections/{cid}", headers=h).status_code == 204
+    assert client.get(f"/api/v1/collections/{cid}", headers=h).status_code == 404
+    assert client.delete(f"/api/v1/collections/{cid}", headers=h).status_code == 404
+    assert client.get(f"/api/v1/public/pay/{token}").status_code == 404
+    assert listing(client, t)["total"] == 2
+    with admin_engine.connect() as c:
+        left = c.execute(
+            text("SELECT count(*) FROM customers WHERE name = 'Rahul Sharma'")
+        ).scalar()
+        events = (
+            c.execute(
+                text("SELECT details::text FROM audit_events WHERE action = 'collection_deleted'")
+            )
+            .scalars()
+            .all()
+        )
+    assert left == 0 and len(events) == 1
+    assert "Rahul Sharma" in events[0] and token not in events[0]
+    dash = client.get("/api/v1/dashboard", headers=h).json()
+    assert dash["customers"] == 2
+
+
+def test_bulk_delete_is_all_or_nothing_and_ignores_other_employers(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    a, b = make_employer("a"), make_employer("b")
+    add(client, a, ROWS)
+    add(client, b, [{"customer_name": "Other Co", "amount_due": "10"}])
+    ha = bearer(a.auth_user_id)
+    ids = [first_id(client, a, n) for n in ("Rahul", "Priya")]
+    foreign = first_id(client, b, "Other")
+    paid = first_id(client, a, "Asha")
+    client.post(f"/api/v1/collections/{paid}/mark-paid", headers=ha)
+    r = client.post("/api/v1/collections/delete", json={"ids": [*ids, paid, foreign]}, headers=ha)
+    assert r.status_code == 200 and r.json() == {"deleted": 3}
+    assert listing(client, a)["total"] == 0
+    assert listing(client, b)["total"] == 1  # the other employer's row is untouched
+    bodies: list[dict[str, Any]] = [{"ids": []}, {"ids": ["not-a-uuid"]}, {"ids": [foreign] * 201}]
+    for body in bodies:
+        assert client.post("/api/v1/collections/delete", json=body, headers=ha).status_code == 422
+
+
+def test_delete_needs_sign_in(client: TestClient) -> None:
+    some = "00000000-0000-0000-0000-000000000001"
+    assert client.delete(f"/api/v1/collections/{some}").status_code == 401
+    assert client.post("/api/v1/collections/delete", json={"ids": [some]}).status_code == 401
+
+
+def test_dashboard_insights_overdue_due_soon_and_top_outstanding(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    t = make_employer("a")
+    add(client, t, ROWS + MORE)
+    h = bearer(t.auth_user_id)
+    d = client.get("/api/v1/dashboard", headers=h).json()
+    assert d["overdue_customers"] == 1 and d["overdue_amount"] == "50.00"
+    assert d["due_soon_customers"] == 0 and d["paid_customers"] == 0
+    assert [r["customer_name"] for r in d["top_outstanding"]][:2] == [
+        "Rahul Sharma",
+        "Amit Hardware",
+    ]
+    assert all("payment_token" not in r for r in d["top_outstanding"])
+    client.post(f"/api/v1/collections/{first_id(client, t, 'Zed')}/mark-paid", headers=h)
+    d = client.get("/api/v1/dashboard", headers=h).json()
+    assert d["overdue_customers"] == 0 and d["paid_customers"] == 1

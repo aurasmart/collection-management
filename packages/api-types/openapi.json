@@ -416,8 +416,8 @@
           "reference",
           "status",
           "has_payment_page",
-          "payment_token",
           "created_at",
+          "payment_token",
           "updated_at"
         ],
         "title": "CollectionDetail",
@@ -517,6 +517,11 @@
             "title": "Amount Due",
             "type": "string"
           },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
           "customer_name": {
             "title": "Customer Name",
             "type": "string"
@@ -581,7 +586,8 @@
           "due_date",
           "reference",
           "status",
-          "has_payment_page"
+          "has_payment_page",
+          "created_at"
         ],
         "title": "CollectionRow",
         "type": "object"
@@ -1078,9 +1084,34 @@
             "title": "Customers",
             "type": "integer"
           },
+          "due_soon_amount": {
+            "default": "0.00",
+            "title": "Due Soon Amount",
+            "type": "string"
+          },
+          "due_soon_customers": {
+            "default": 0,
+            "title": "Due Soon Customers",
+            "type": "integer"
+          },
+          "overdue_amount": {
+            "default": "0.00",
+            "title": "Overdue Amount",
+            "type": "string"
+          },
+          "overdue_customers": {
+            "default": 0,
+            "title": "Overdue Customers",
+            "type": "integer"
+          },
           "paid_amount": {
             "title": "Paid Amount",
             "type": "string"
+          },
+          "paid_customers": {
+            "default": 0,
+            "title": "Paid Customers",
+            "type": "integer"
           },
           "pending_customers": {
             "title": "Pending Customers",
@@ -1091,6 +1122,14 @@
               "$ref": "#/components/schemas/RecentRow"
             },
             "title": "Recent",
+            "type": "array"
+          },
+          "top_outstanding": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RecentRow"
+            },
+            "title": "Top Outstanding",
             "type": "array"
           },
           "total_outstanding": {
@@ -1136,6 +1175,39 @@
           "examples"
         ],
         "title": "DateInfoOut",
+        "type": "object"
+      },
+      "DeleteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "title": "DeleteRequest",
+        "type": "object"
+      },
+      "DeleteResult": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deleted"
+        ],
+        "title": "DeleteResult",
         "type": "object"
       },
       "EmployerOut": {
@@ -1729,6 +1801,18 @@
             "title": "Customer Name",
             "type": "string"
           },
+          "due_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Date"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2166,6 +2250,186 @@
           },
           {
             "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "created_desc",
+              "enum": [
+                "created_desc",
+                "created_asc",
+                "due_asc",
+                "due_desc",
+                "amount_desc",
+                "amount_asc",
+                "name_asc",
+                "name_desc"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "overdue",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Overdue",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "due_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Due From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "due_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Due To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_amount",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Amount"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_amount",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0.0,
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max Amount"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "created_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Created To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "payment_page",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "yes",
+                    "no"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Payment Page"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_phone",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "yes",
+                    "no"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Phone"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -2221,7 +2485,92 @@
         ]
       }
     },
+    "/api/v1/collections/delete": {
+      "post": {
+        "operationId": "deleteCollections",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete several of your customers at once (all or nothing)",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
     "/api/v1/collections/{collection_id}": {
+      "delete": {
+        "operationId": "deleteCollection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete one customer",
+        "tags": [
+          "collections"
+        ]
+      },
       "get": {
         "operationId": "getCollection",
         "parameters": [
@@ -2489,7 +2838,7 @@
             "HTTPBearer": []
           }
         ],
-        "summary": "Four simple numbers and the latest customers",
+        "summary": "The headline numbers, a few insights and the latest customers",
         "tags": [
           "dashboard"
         ]
