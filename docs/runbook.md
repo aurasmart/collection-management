@@ -36,9 +36,9 @@ Do these in order: later steps need values from earlier ones.
    **Health Check Path: `/healthz`**, **Auto-Deploy: On Commit**.
 3. **Instance type:** *Free* works for a trial (it sleeps after ~15 minutes idle, so the first request takes about a minute).
    *Starter* ($7/month) is recommended for real use.
-4. **Docker Command** (Advanced; needed on Free so the database is migrated on every start; optional on Starter, which can
-   use the **Pre-Deploy Command** `alembic upgrade head` instead):
-   `sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"`
+4. **Docker Command**: leave it **empty**. The image's default command starts the API, and it applies the database
+   migrations first when the environment variable `RUN_MIGRATIONS=true` is set (step 5). On Starter you may instead leave
+   `RUN_MIGRATIONS` unset and use the **Pre-Deploy Command** `alembic upgrade head`.
 5. **Environment variables** (names only here; values are yours):
 
    | Variable | Value |
@@ -54,6 +54,7 @@ Do these in order: later steps need values from earlier ones.
    | `TOKEN_ENC_KEY` | `python3 -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"` |
    | `TOKEN_HMAC_SECRET` | `python3 -c "import secrets;print(secrets.token_hex(32))"` |
    | `OCR_ENABLED` | `true` |
+   | `RUN_MIGRATIONS` | `true` (applies database migrations on every start; required on the Free plan) |
    | `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | optional: private Google Sheets only (set both or neither) |
 
 6. **Create Web Service.** Render builds the image (several minutes: it installs Tesseract), starts it, migrates the database,

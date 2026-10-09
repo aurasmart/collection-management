@@ -2,8 +2,8 @@
 # Secrets use `sync: false`: Render asks for them in the dashboard and they are never stored in git.
 #
 # FREE plan: the service sleeps after ~15 min idle (first request then takes ~1 minute) and Render's
-# `preDeployCommand` is not available, so migrations run at start-up (dockerCommand below).
-# STARTER plan (recommended for real use): set `plan: starter`, delete `dockerCommand`, and use
+# `preDeployCommand` is not available, so migrations run at start-up (RUN_MIGRATIONS=true, handled by the image's default command).
+# STARTER plan (recommended for real use): set `plan: starter`, remove RUN_MIGRATIONS, and use
 # `preDeployCommand: alembic upgrade head` instead.
 services:
   - type: web
@@ -15,10 +15,11 @@ services:
     region: singapore
     healthCheckPath: /healthz
     autoDeployTrigger: commit
-    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000} --proxy-headers --forwarded-allow-ips='*'"
     envVars:
       - key: APP_ENV
         value: production
+      - key: RUN_MIGRATIONS
+        value: "true"
       - key: STORAGE_BACKEND
         value: supabase
       - key: QR_BUCKET

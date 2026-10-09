@@ -27,4 +27,6 @@ USER appuser
 
 EXPOSE 8000
 # Render sets $PORT. --proxy-headers because TLS terminates at the platform proxy.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+# RUN_MIGRATIONS=true applies pending Alembic migrations before the server starts (single-instance hosts such as
+# Render's free plan, which has no pre-deploy step). Leave it unset for the worker and for local runs.
+CMD ["sh", "-c", "if [ \"$RUN_MIGRATIONS\" = true ]; then alembic upgrade head || exit 1; fi; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
