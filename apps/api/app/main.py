@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI, Request, Response
@@ -42,7 +43,8 @@ def create_app() -> FastAPI:
     )
 
     @app.exception_handler(StorageError)
-    async def storage_error(_request: Request, _exc: StorageError) -> JSONResponse:
+    async def storage_error(_request: Request, exc: StorageError) -> JSONResponse:
+        logging.getLogger(__name__).warning("file storage failed: %s", exc)  # status only
         return JSONResponse(status_code=502, content={"detail": "File storage is unavailable"})
 
     @app.middleware("http")

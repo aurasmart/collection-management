@@ -33,7 +33,12 @@ function failure(error: unknown, status: number): { errors: ApiFieldError[]; mes
   const errors = fieldErrors(error)
   return {
     errors,
-    message: errors.length || status === 422 ? '' : "Couldn't save. Please try again.",
+    message:
+      errors.length || status === 422
+        ? ''
+        : status === 502
+          ? "Couldn't store the receipt file. Check that the private 'receipts' bucket exists in Supabase Storage."
+          : "Couldn't save. Please try again.",
   }
 }
 
