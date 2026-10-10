@@ -106,7 +106,16 @@ def extract(file: UploadFile, user: User, ctx: Ctx) -> PettyCashProposal:
     try:
         parsed = parse_receipt(files.receipt_text(raw, content_type))
         text_read = True
-    except (OcrUnavailable, OcrError):
+    except (OcrUnavailable, OcrError) as exc:
+        # Why, for the server log only (never the receipt's content): "not installed/off" vs a
+        # recognition failure such as a timeout.
+        cause = exc.__cause__
+        logging.getLogger(__name__).warning(
+            "receipt text could not be read: %s: %s (cause: %s)",
+            type(exc).__name__,
+            exc,
+            type(cause).__name__ if cause else "none",
+        )
         parsed = parse_receipt("")
         text_read = False
     duplicate = False

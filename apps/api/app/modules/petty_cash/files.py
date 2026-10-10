@@ -7,6 +7,7 @@ employer reviews (ADR 0008).
 
 from __future__ import annotations
 
+import contextlib
 import io
 
 import pdfplumber
@@ -14,7 +15,13 @@ from fastapi import HTTPException
 from PIL import Image, UnidentifiedImageError
 
 from app.core.config import get_settings
-from app.modules.imports.ocr import OcrError, OcrUnavailable, get_ocr_provider
+from app.modules.imports.ocr import (
+    OcrError,
+    OcrProvider,
+    OcrUnavailable,
+    TesseractProvider,
+    get_ocr_provider,
+)
 from app.modules.settings.service import unprocessable
 
 RECEIPT_MAX_BYTES = 5 * 1024 * 1024
@@ -74,7 +81,22 @@ def receipt_text(data: bytes, content_type: str) -> str:
         raise OcrUnavailable("Text recognition is switched off")
     with Image.open(io.BytesIO(data)) as img:
         img.load()
-        return provider.recognize(_prepare(img), timeout=_timeout())
+        return _image_text(provider, img)
+
+
+def _image_text(provider: OcrProvider, img: Image.Image) -> str:
+    """The whole image, plus a second look at the top banner where UPI apps print the amount in
+    large white-on-colour type that the main pass skips."""
+    gray = _prepare(img)
+    text = provider.recognize(gray, timeout=_timeout())
+    banner = gray.crop((0, 0, gray.width, int(gray.height * 0.25)))
+    banner = banner.resize((banner.width * 2, banner.height * 2), Image.Resampling.LANCZOS)
+    with contextlib.suppress(OcrError):  # the main pass already worked; the banner is a bonus
+        if isinstance(provider, TesseractProvider):
+            text += "\n" + provider.recognize(banner, timeout=_timeout(), psm=11)
+        else:
+            text += "\n" + provider.recognize(banner, timeout=_timeout())
+    return text
 
 
 def _timeout() -> float:

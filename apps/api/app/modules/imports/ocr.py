@@ -37,16 +37,20 @@ class TesseractProvider:
     def installed() -> bool:
         return shutil.which("tesseract") is not None
 
-    def recognize(self, image: Image.Image, *, timeout: float) -> str:
+    def recognize(self, image: Image.Image, *, timeout: float, psm: int = 6) -> str:
         import pytesseract
 
         if not self.installed():
             raise OcrUnavailable("Tesseract is not installed")
         try:
-            # --psm 6: treat the page as one uniform block of rows, which suits ledgers and lists.
+            # --psm 6 (default): one uniform block of rows, which suits ledgers and lists.
+            # --psm 11: sparse text, which finds isolated figures such as a headline amount.
             return str(
                 pytesseract.image_to_string(
-                    image, lang=self._languages, config="--psm 6", timeout=max(1, int(timeout))
+                    image,
+                    lang=self._languages,
+                    config=f"--psm {psm}",
+                    timeout=max(1, int(timeout)),
                 )
             )
         except RuntimeError as exc:  # pytesseract raises RuntimeError("Tesseract process timeout")

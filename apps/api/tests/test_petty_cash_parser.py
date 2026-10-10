@@ -85,3 +85,49 @@ def test_amount_forms() -> None:
     assert parse_receipt("Rs. 12,500").amount == "12500.00"
     assert parse_receipt("Amount: 99.50").amount == "99.50"
     assert parse_receipt("Total 1,23,456.78 paid").amount == "123456.78"
+
+
+# What Tesseract actually returns for a BHIM screenshot: two-column rows (labels above values),
+# icon junk at the start of lines, and the rupee sign read as a "2" in the big headline amount.
+BHIM_SCREEN = """\
+BHIM - Bharat's Own Payments App
+Paid
+21250.00
+Tag this transaction
+Banking Name
+Master HARIOM PATIDAR
+Transaction ID Date & Time
+110806319618 (! = 2nd Oct 26,
+11:08 am
+To UPI ID Remarks
+******5520@pP NO REMARK
+thdfc
+Debited account
+UCO BANK
+ee XXXX3093
+Process details
+ve Payment initiated by AKSHAY
+BHANDARI
+@ Payment transferred from AKSHAY
+BHANDARI's account
+Payment received by Master HARIOM
+“  PATIDAR
+Hide details t
+"""
+
+
+def test_bhim_two_column_screen() -> None:
+    p = parse_receipt(BHIM_SCREEN)
+    assert p.transaction_id == "110806319618"
+    assert p.txn_date == date(2026, 10, 2)
+    assert p.payment_to == "Master HARIOM PATIDAR"
+    assert p.payment_from == "AKSHAY BHANDARI"
+    assert p.remarks is None  # "NO REMARK" means there is none
+    assert p.amount == "1250.00"
+
+
+def test_headline_amount_with_the_rupee_sign_misread() -> None:
+    assert parse_receipt("Paid\n21250.00\n").amount == "1250.00"
+    assert parse_receipt("Paid\n₹1250.00\n").amount == "1250.00"
+    assert parse_receipt("Paid\n250.00\n").amount == "250.00"  # no sign to drop
+    assert parse_receipt("Paid\n%1,250.00\n").amount == "1250.00"

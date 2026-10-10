@@ -43,12 +43,18 @@ _TXN = re.compile(
 )
 
 
+_TXN_BARE = re.compile(r"\b\d{12}\b|\b[A-Za-z]{1,3}\d{12,30}\b")
+
+
 def _transaction_id(text: str) -> str | None:
     for m in _TXN.finditer(text):
         token = m.group(1)
         if any(ch.isdigit() for ch in token):
             return token
-    return None
+    # Labels and values on separate rows (two-column layouts): a 12-digit UPI reference, or the
+    # letter-prefixed long numbers some apps print.
+    bare = _TXN_BARE.search(text)
+    return bare.group(0) if bare else None
 
 
 # --- date ------------------------------------------------------------------------------------
@@ -98,6 +104,9 @@ _AMOUNT_SYMBOL = re.compile(rf"(?:₹|\bRs\.?|\bINR)\s*({_NUM})", re.I)
 _AMOUNT_LABEL = re.compile(
     rf"\bamount\b(?:\s*(?:paid|debited|transferred|sent))?[^\d\n]{{0,25}}?({_NUM})", re.I
 )
+# A number alone on its line, e.g. the big figure at the top of a UPI app. OCR often reads the rupee
+# sign as a digit "2" (or another symbol) glued to the front, so that prefix is dropped.
+_AMOUNT_BARE = re.compile(r"^\W*([^\d\s]{0,2})(\d[\d,]*\.\d{2})\W*$", re.M)
 _AMOUNT_ANY = re.compile(r"(?<![\w.,/-])(\d{1,3}(?:,\d{2,3})*\.\d{2})(?![\w/-])")
 
 
@@ -111,67 +120,96 @@ def _to_amount(raw: str) -> str | None:
     return format(value.quantize(Decimal("0.01")), "f")
 
 
+def _bare_amount(text: str) -> str | None:
+    for m in _AMOUNT_BARE.finditer(text):
+        digits = m.group(2)
+        whole = digits.split(".")[0].replace(",", "")
+        if not m.group(1) and digits.startswith("2") and len(whole) >= 4:
+            digits = digits[1:]  # "21250.00" is "₹1250.00" with the sign misread as a 2
+        if (a := _to_amount(digits)) is not None:
+            return a
+    return None
+
+
 def _amount(text: str) -> str | None:
-    for pattern in (_AMOUNT_SYMBOL, _AMOUNT_LABEL, _AMOUNT_ANY):
+    for pattern in (_AMOUNT_SYMBOL, _AMOUNT_LABEL):
         for m in pattern.finditer(text):
             if (a := _to_amount(m.group(1))) is not None:
                 return a
+    if (a := _bare_amount(text)) is not None:
+        return a
+    for m in _AMOUNT_ANY.finditer(text):
+        if (a := _to_amount(m.group(1))) is not None:
+            return a
     return None
 
 
 # --- labelled text fields --------------------------------------------------------------------
-_TO = (
+_NOISE = r"^\W*(?:\w{1,2}\s+)?"  # OCR often turns an icon at the start of a line into junk
+_TO_LABELS = (
     r"(?:payment\s+to|paid\s+to|paying\s+to|sent\s+to|transferred\s+to|credited\s+to|"
-    r"beneficiary(?:\s+name)?|receiver|payee|to)"
+    r"beneficiary(?:\s+name)?|receiver|payee)",
+    r"(?:payment\s+)?received\s+by",
+    r"banking\s+name",
+    r"to",
 )
-_FROM = (
+_FROM_LABELS = (
     r"(?:payment\s+from|paid\s+from|paid\s+by|debited\s+from|sent\s+from|from\s+account|"
-    r"sender|payer|from)"
+    r"sender|payer)",
+    r"payment\s+(?:initiated\s+by|transferred\s+from)",
+    r"debited\s+account",
+    r"from",
 )
 _REMARKS = r"(?:remarks?|note|message|narration|description|purpose|comments?)"
 _OTHER_LABELS = (
-    r"(?:amount|payment\s+mode|mode|date|time|status|reference|ref|transaction|txn|utr|upi|"
-    r"payment\s+id|bank|ifsc|charges|fee|total|back\s+to|another\s+payment)"
+    r"(?:amount|payment\s+(?:mode|id|initiated|transferred|received)|mode|date|time|status|"
+    r"reference|ref|transaction|txn|utr|upi|bank|banking|debited|ifsc|charges|fee|total|"
+    r"process\s+details|hide\s+details|back\s+to|another\s+payment)"
 )
-_LABEL_LINE = re.compile(rf"^\s*(?:{_TO}|{_FROM}|{_REMARKS}|{_OTHER_LABELS})\b", re.I)
+_ANY_LABEL = "|".join([*_TO_LABELS, *_FROM_LABELS, _REMARKS, _OTHER_LABELS])
+_LABEL_LINE = re.compile(rf"{_NOISE}(?:{_ANY_LABEL})\b", re.I)
 
 
 def _tidy(value: str) -> str:
     value = re.sub(r"\s+", " ", value).strip(" \t:-–|·•")
+    value = re.sub(r"['’]s account$", "", value, flags=re.I)
     return value.strip()
 
 
-def _labelled(lines: list[str], label: str, *, continuation: int) -> str | None:
-    head = re.compile(rf"^\s*{label}\b\s*[:\-–]?\s*(.*)$", re.I)
-    for i, line in enumerate(lines):
-        m = head.match(line)
-        if not m:
-            continue
-        parts = [m.group(1)] if m.group(1).strip() else []
-        j = i + 1
-        wanted = continuation + 1
-        while j < len(lines) and len(parts) < wanted:
-            nxt = lines[j]
-            if nxt.strip():
-                if _LABEL_LINE.match(nxt):
-                    break
-                parts.append(nxt)
-            j += 1
-        value = _tidy(" ".join(parts))
-        if value:
-            return value[:300]
+def _labelled(lines: list[str], labels: tuple[str, ...], *, continuation: int) -> str | None:
+    """The value after the first label found; labels are tried in priority order."""
+    for label in labels:
+        head = re.compile(rf"{_NOISE}{label}\b\s*[:\-–]?\s*(.*)$", re.I)
+        for i, line in enumerate(lines):
+            m = head.match(line)
+            if not m:
+                continue
+            parts = [m.group(1)] if m.group(1).strip() else []
+            j = i + 1
+            while j < len(lines) and len(parts) < continuation + 1:
+                nxt = lines[j]
+                if nxt.strip():
+                    if _LABEL_LINE.match(nxt):
+                        break
+                    parts.append(re.sub(r"^\W+", "", nxt))  # drop leading junk from icons
+                j += 1
+            value = _tidy(" ".join(parts))
+            if value:
+                return value[:300]
     return None
 
 
 def parse_receipt(text: str) -> ParsedReceipt:
     lines = [ln.rstrip() for ln in text.replace("\r", "\n").split("\n")]
     flat = "\n".join(lines)
-    remarks = _labelled(lines, _REMARKS, continuation=0)
+    remarks = _labelled(lines, (_REMARKS,), continuation=0)
+    if remarks and re.fullmatch(r"no\s+remarks?", remarks, re.I):
+        remarks = None
     return ParsedReceipt(
         transaction_id=_transaction_id(flat),
         txn_date=_txn_date(flat),
-        payment_to=_labelled(lines, _TO, continuation=2),
-        payment_from=_labelled(lines, _FROM, continuation=2),
+        payment_to=_labelled(lines, _TO_LABELS, continuation=2),
+        payment_from=_labelled(lines, _FROM_LABELS, continuation=2),
         remarks=remarks[:500] if remarks else None,
         amount=_amount(flat),
     )
