@@ -44,8 +44,8 @@ YesNo = Literal["yes", "no"]
 
 # Whitelist: the `sort` query value only ever selects one of these constant fragments.
 _ORDER = {
-    "created_desc": "c.created_at DESC",
-    "created_asc": "c.created_at ASC",
+    "created_desc": "c.created_at DESC, c.seq DESC",
+    "created_asc": "c.created_at ASC, c.seq ASC",
     "due_asc": "c.due_date ASC NULLS LAST",
     "due_desc": "c.due_date DESC NULLS LAST",
     "amount_desc": "c.amount_due DESC",
@@ -231,7 +231,7 @@ def list_collections(
         rows = db.execute(
             text(
                 f"{_SELECT} WHERE {clause} "
-                f"ORDER BY {_ORDER[sort]}, c.id LIMIT :limit OFFSET :offset"
+                f"ORDER BY {_ORDER[sort]}, c.seq LIMIT :limit OFFSET :offset"
             ),  # noqa: S608
             params,
         ).all()

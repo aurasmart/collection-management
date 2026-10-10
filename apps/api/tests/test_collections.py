@@ -345,7 +345,10 @@ def test_sorting_by_name_amount_due_date_and_added(
     due = names(listing(client, t, sort="due_asc"))
     assert due[0] == "Zed Stores" and due[-1] in {"Rahul Sharma", "Asha Stores"}  # no date: last
     assert names(listing(client, t, sort="due_desc"))[0] == "Amit Hardware"
-    assert len(names(listing(client, t, sort="created_asc"))) == 5
+    # Rows imported together share one created_at: they must still come back in file order.
+    in_file_order = [r["customer_name"] for r in ROWS + MORE]
+    assert names(listing(client, t, sort="created_asc")) == in_file_order
+    assert names(listing(client, t, sort="created_desc")) == in_file_order[::-1]
     bad = client.get(
         "/api/v1/collections", params={"sort": "name; DROP TABLE x"}, headers=bearer(t.auth_user_id)
     )
