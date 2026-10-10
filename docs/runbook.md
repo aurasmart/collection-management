@@ -25,7 +25,7 @@ Do these in order: later steps need values from earlier ones.
 6. **Authentication → URL Configuration** (after step 3 below you know the Pages address):
    *Site URL* = `https://<owner>.github.io/<repo>/` and *Redirect URLs* =
    `https://<owner>.github.io/<repo>/#/login?confirmed=1` and `https://<owner>.github.io/<repo>/#/reset-password`.
-7. **Storage → New bucket** named `qr`, **Private** (no public policy). Logos and QR codes live here. Create a second **Private** bucket named `receipts` for payment and petty-cash receipts (ADR 0008).
+7. **Storage → New bucket** named `qr`, **Private** (no public policy). Logos and QR codes live here. Create a second **Private** bucket named `receipt` for payment and petty-cash receipts (ADR 0008).
 8. JWT: new projects sign tokens with asymmetric keys. `SUPABASE_JWKS_URL` =
    `https://<ref>.supabase.co/auth/v1/.well-known/jwks.json`, `JWT_ISSUER` = `https://<ref>.supabase.co/auth/v1`.
    (Older projects: set `SUPABASE_JWT_SECRET` from **Project Settings → API → JWT Secret** instead.)
@@ -51,7 +51,7 @@ Do these in order: later steps need values from earlier ones.
    | `SUPABASE_JWKS_URL`, `JWT_ISSUER` | see step 1.8 |
    | `STORAGE_BACKEND` | `supabase` |
    | `QR_BUCKET` | `qr` |
-   | `RECEIPTS_BUCKET` | `receipts` |
+   | `RECEIPTS_BUCKET` | `receipt` |
    | `TOKEN_ENC_KEY` | `python3 -c "import os,base64;print(base64.b64encode(os.urandom(32)).decode())"` |
    | `TOKEN_HMAC_SECRET` | `python3 -c "import secrets;print(secrets.token_hex(32))"` |
    | `OCR_ENABLED` | `true` |
