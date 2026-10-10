@@ -3,25 +3,31 @@
 from __future__ import annotations
 
 import json
+import logging
 import secrets
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
 from app.core.db import tenant_session
 from app.core.security import AuthenticatedUser, require_user
 from app.core.tenancy import EmployerContext, get_employer_context
 from app.modules.collections.rules import validate_row
+from app.modules.petty_cash import files as receipt_files
+from app.storage.base import StorageService, get_storage
 
 router = APIRouter(prefix="/api/v1/collections", tags=["collections"])
 Ctx = Annotated[EmployerContext, Depends(get_employer_context)]
 User = Annotated[AuthenticatedUser, Depends(require_user)]
+Storage = Annotated[StorageService, Depends(get_storage)]
+AppSettings = Annotated[Settings, Depends(get_settings)]
 
 Status = Literal["PENDING", "PAID"]
 Sort = Literal[
@@ -50,7 +56,11 @@ _ORDER = {
 
 _SELECT = (
     "SELECT c.id, cu.name AS customer_name, cu.phone, c.amount_due, c.due_date, c.reference, "
-    "c.status, c.payment_token, c.created_at, c.updated_at "
+    "c.status, c.payment_token, c.created_at, c.updated_at, "
+    "(SELECT cr.content_type FROM collection_receipts cr WHERE cr.collection_id = c.id) "
+    "AS receipt_type, "
+    "(SELECT cr.original_name FROM collection_receipts cr WHERE cr.collection_id = c.id) "
+    "AS receipt_name "
     "FROM collections c JOIN customers cu "
     "ON cu.id = c.customer_id AND cu.employer_id = c.employer_id"
 )
@@ -71,6 +81,7 @@ class CollectionRow(BaseModel):
     reference: str | None
     status: Status
     has_payment_page: bool
+    has_receipt: bool
     created_at: datetime
 
 
@@ -83,6 +94,8 @@ class CollectionDetail(CollectionRow):
     # The payment-page token, only ever returned to the signed-in owner of this record.
     payment_token: str | None
     updated_at: datetime
+    receipt_name: str | None
+    receipt_content_type: str | None
 
 
 class DeleteRequest(BaseModel):
@@ -113,12 +126,19 @@ def _row(r: Any) -> dict[str, Any]:
         "reference": r.reference,
         "status": r.status,
         "has_payment_page": r.payment_token is not None,
+        "has_receipt": r.receipt_type is not None,
         "created_at": r.created_at,
     }
 
 
 def _detail(r: Any) -> CollectionDetail:
-    return CollectionDetail(**_row(r), payment_token=r.payment_token, updated_at=r.updated_at)
+    return CollectionDetail(
+        **_row(r),
+        payment_token=r.payment_token,
+        updated_at=r.updated_at,
+        receipt_name=r.receipt_name,
+        receipt_content_type=r.receipt_type,
+    )
 
 
 def _load(db: Session, collection_id: uuid.UUID, *, lock: bool = False) -> Any:
@@ -218,10 +238,23 @@ def list_collections(
     return CollectionList(items=[CollectionRow(**_row(r)) for r in rows], total=total)
 
 
+def _delete_objects(storage: StorageService, app_settings: Settings, keys: list[str]) -> None:
+    for key in keys:
+        try:
+            storage.delete(app_settings.receipts_bucket, key)
+        except Exception:  # an orphaned private object is harmless; never fail the request for it
+            logging.getLogger(__name__).warning("could not delete a receipt object")
+
+
 def _delete_collections(
-    db: Session, ctx: EmployerContext, user: AuthenticatedUser, ids: list[uuid.UUID]
+    db: Session,
+    ctx: EmployerContext,
+    user: AuthenticatedUser,
+    ids: list[uuid.UUID],
+    receipt_keys: list[str],
 ) -> int:
-    """Delete the employer's own collections and their per-row customers; other ids are skipped."""
+    """Delete the employer's own collections and their per-row customers; other ids are skipped.
+    The storage keys of their receipts are appended to `receipt_keys` for the caller to remove."""
     deleted = 0
     for cid in dict.fromkeys(ids):
         row = db.execute(
@@ -239,6 +272,14 @@ def _delete_collections(
         customer_id = db.execute(
             text("SELECT customer_id FROM collections WHERE id = :id"), {"id": cid}
         ).scalar_one()
+        receipt_keys.extend(
+            db.execute(
+                text("SELECT storage_key FROM collection_receipts WHERE collection_id = :id"),
+                {"id": cid},
+            )
+            .scalars()
+            .all()
+        )
         db.execute(text("DELETE FROM collections WHERE id = :id"), {"id": cid})
         db.execute(
             text(
@@ -269,9 +310,14 @@ def _delete_collections(
     operation_id="deleteCollections",
     summary="Delete several of your customers at once (all or nothing)",
 )
-def delete_collections(body: DeleteRequest, user: User, ctx: Ctx) -> DeleteResult:
+def delete_collections(
+    body: DeleteRequest, user: User, ctx: Ctx, storage: Storage, app_settings: AppSettings
+) -> DeleteResult:
+    keys: list[str] = []
     with tenant_session(ctx.employer_id) as db:
-        return DeleteResult(deleted=_delete_collections(db, ctx, user, body.ids))
+        result = DeleteResult(deleted=_delete_collections(db, ctx, user, body.ids, keys))
+    _delete_objects(storage, app_settings, keys)
+    return result
 
 
 @router.delete(
@@ -280,10 +326,14 @@ def delete_collections(body: DeleteRequest, user: User, ctx: Ctx) -> DeleteResul
     summary="Delete one customer",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def delete_collection(collection_id: uuid.UUID, user: User, ctx: Ctx) -> None:
+def delete_collection(
+    collection_id: uuid.UUID, user: User, ctx: Ctx, storage: Storage, app_settings: AppSettings
+) -> None:
+    keys: list[str] = []
     with tenant_session(ctx.employer_id) as db:
         _load(db, collection_id)  # 404 for a missing id (or another employer's)
-        _delete_collections(db, ctx, user, [collection_id])
+        _delete_collections(db, ctx, user, [collection_id], keys)
+    _delete_objects(storage, app_settings, keys)
 
 
 @router.get("/{collection_id}", operation_id="getCollection", summary="One customer")
@@ -405,3 +455,111 @@ def mark_paid(collection_id: uuid.UUID, user: User, ctx: Ctx) -> CollectionDetai
                 {"amount": format(current.amount_due, "f")},
             )
         return _detail(_load(db, collection_id))
+
+
+@router.put(
+    "/{collection_id}/receipt",
+    operation_id="uploadCollectionReceipt",
+    summary="Attach (or replace) the payment receipt: image or PDF, max 5 MB",
+)
+def upload_receipt(
+    collection_id: uuid.UUID,
+    file: UploadFile,
+    user: User,
+    ctx: Ctx,
+    storage: Storage,
+    app_settings: AppSettings,
+) -> CollectionDetail:
+    raw = receipt_files.read_upload(file.file.read(receipt_files.RECEIPT_MAX_BYTES + 1))
+    content_type = receipt_files.check_receipt(raw)
+    with tenant_session(ctx.employer_id) as db:
+        _load(db, collection_id)  # 404 before anything is stored
+    key = f"{ctx.employer_id}/receipts/{uuid.uuid4()}"
+    storage.put(app_settings.receipts_bucket, key, raw, content_type)
+    old_key: str | None = None
+    try:
+        with tenant_session(ctx.employer_id) as db:
+            _load(db, collection_id, lock=True)
+            old_key = db.execute(
+                text("SELECT storage_key FROM collection_receipts WHERE collection_id = :id"),
+                {"id": collection_id},
+            ).scalar_one_or_none()
+            db.execute(
+                text(
+                    "INSERT INTO collection_receipts (employer_id, collection_id, storage_key, "
+                    "content_type, size_bytes, original_name) "
+                    "VALUES (:e, :id, :k, :ct, :n, :name) "
+                    "ON CONFLICT (collection_id) DO UPDATE SET storage_key = EXCLUDED.storage_key, "
+                    "content_type = EXCLUDED.content_type, size_bytes = EXCLUDED.size_bytes, "
+                    "original_name = EXCLUDED.original_name, created_at = now()"
+                ),
+                {
+                    "e": ctx.employer_id,
+                    "id": collection_id,
+                    "k": key,
+                    "ct": content_type,
+                    "n": len(raw),
+                    "name": receipt_files.clean_name(file.filename),
+                },
+            )
+            _audit(db, ctx, user, collection_id, "receipt_attached", {})
+            out = _detail(_load(db, collection_id))
+    except Exception:
+        _delete_objects(storage, app_settings, [key])
+        raise
+    if old_key:
+        _delete_objects(storage, app_settings, [old_key])
+    return out
+
+
+@router.get(
+    "/{collection_id}/receipt",
+    operation_id="getCollectionReceipt",
+    summary="The attached receipt file (authenticated; owner only)",
+    response_class=Response,
+    responses={200: {"content": {"application/octet-stream": {}}}, 404: {"description": "None"}},
+)
+def get_receipt(
+    collection_id: uuid.UUID, ctx: Ctx, storage: Storage, app_settings: AppSettings
+) -> Response:
+    with tenant_session(ctx.employer_id) as db:
+        _load(db, collection_id)
+        row = db.execute(
+            text(
+                "SELECT storage_key, content_type FROM collection_receipts "
+                "WHERE collection_id = :id"
+            ),
+            {"id": collection_id},
+        ).one_or_none()
+    if row is None or not row.storage_key.startswith(f"{ctx.employer_id}/"):  # defence in depth
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No receipt")
+    data = storage.get(app_settings.receipts_bucket, row.storage_key)
+    if data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No receipt")
+    return Response(
+        content=data,
+        media_type=row.content_type,
+        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@router.delete(
+    "/{collection_id}/receipt",
+    operation_id="deleteCollectionReceipt",
+    summary="Remove the attached receipt",
+)
+def delete_receipt(
+    collection_id: uuid.UUID, user: User, ctx: Ctx, storage: Storage, app_settings: AppSettings
+) -> CollectionDetail:
+    with tenant_session(ctx.employer_id) as db:
+        _load(db, collection_id, lock=True)
+        key = db.execute(
+            text("DELETE FROM collection_receipts WHERE collection_id = :id RETURNING storage_key"),
+            {"id": collection_id},
+        ).scalar_one_or_none()
+        if key:
+            _audit(db, ctx, user, collection_id, "receipt_removed", {})
+        out = _detail(_load(db, collection_id))
+    if key:
+        _delete_objects(storage, app_settings, [key])
+    return out

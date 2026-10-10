@@ -85,6 +85,7 @@ def test_list_shows_customers_newest_first_with_search_and_status_filter(
         "reference": "INV-1",
         "status": "PENDING",
         "has_payment_page": False,
+        "has_receipt": False,
         "created_at": first["created_at"],
     }
     assert "payment_token" not in first  # tokens are never in the list

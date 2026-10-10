@@ -14,6 +14,7 @@ from app.modules.dashboard.router import router as dashboard_router
 from app.modules.health.router import router as health_router
 from app.modules.imports.router import router as imports_router
 from app.modules.me.router import router as me_router
+from app.modules.petty_cash.router import router as petty_cash_router
 from app.modules.public_pay.router import router as public_router
 from app.modules.settings.router import router as settings_router
 from app.storage.base import StorageError
@@ -61,6 +62,7 @@ def create_app() -> FastAPI:
     app.include_router(company_router)
     app.include_router(imports_router)
     app.include_router(collections_router)
+    app.include_router(petty_cash_router)
     app.include_router(dashboard_router)
     app.include_router(public_router)
     return app

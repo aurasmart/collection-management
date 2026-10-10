@@ -18,7 +18,7 @@ Phase 0 (foundation) and Phase 1 (auth + payment settings) are committed. The **
 (Excel/CSV → customers → payment page → manual Mark Paid) is implemented on top of them and awaiting review; see
 `docs/adr/0006-simple-payment-flow-mvp.md`. The original Stage 3 phases 2–6 are **superseded** by that ADR: do not build
 PDF/Word/OCR/AI, payment requests with snapshots, partial payments, gateways, UPI APIs or dynamic QR unless the owner
-re-approves them.
+re-approves them. Exception: ADR 0008 (owner-approved) adds **Petty Cash** receipt reading (Tesseract OCR, proposals only) and optional payment receipts on Mark as Paid.
 
 ## Architecture
 - `apps/web` — React 19 + TypeScript (strict) + Vite PWA, Tailwind v4 + Radix primitives, TanStack Query,

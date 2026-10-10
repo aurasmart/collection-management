@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { components, paths } from '@collections/api-types'
 import { api, fieldErrors, type ApiFieldError } from '@/lib/api'
+import { fileForm } from '@/lib/receipt'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 export type CollectionRow = components['schemas']['CollectionRow']
@@ -128,6 +129,48 @@ export function useDeleteCollections() {
 }
 
 type Action = 'payment-page' | 'mark-paid' | 'mark-unpaid'
+
+/** Attach or replace the payment receipt (image/PDF). Throws with the server's reason on failure. */
+export function useUploadReceipt(id: string) {
+  const refresh = useRefreshAll()
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const { data, error } = await api.PUT('/api/v1/collections/{collection_id}/receipt', {
+        params: { path: { collection_id: id } },
+        body: { file: '' },
+        bodySerializer: fileForm(file),
+      })
+      if (!data) {
+        const first = fieldErrors(error)[0]
+        throw new Error(first?.message ?? "Couldn't attach the receipt")
+      }
+      return data
+    },
+    onSuccess: (detail) => refresh(detail),
+  })
+}
+
+export function useRemoveReceipt(id: string) {
+  const refresh = useRefreshAll()
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await api.DELETE('/api/v1/collections/{collection_id}/receipt', {
+        params: { path: { collection_id: id } },
+      })
+      if (!data) throw new Error('Remove failed')
+      return data
+    },
+    onSuccess: (detail) => refresh(detail),
+  })
+}
+
+export async function fetchReceipt(id: string): Promise<Blob | undefined> {
+  const { data } = await api.GET('/api/v1/collections/{collection_id}/receipt', {
+    params: { path: { collection_id: id } },
+    parseAs: 'blob',
+  })
+  return data
+}
 
 export function useCollectionAction(id: string, action: Action) {
   const refresh = useRefreshAll()

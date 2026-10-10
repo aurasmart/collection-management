@@ -212,6 +212,40 @@
         "title": "Body_analyzeImport",
         "type": "object"
       },
+      "Body_createPettyCashEntry": {
+        "properties": {
+          "fields": {
+            "description": "JSON of the reviewed fields",
+            "title": "Fields",
+            "type": "string"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "fields"
+        ],
+        "title": "Body_createPettyCashEntry",
+        "type": "object"
+      },
+      "Body_extractPettyCashReceipt": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_extractPettyCashReceipt",
+        "type": "object"
+      },
       "Body_previewImport": {
         "properties": {
           "date_order": {
@@ -296,6 +330,20 @@
         "title": "Body_previewImport",
         "type": "object"
       },
+      "Body_uploadCollectionReceipt": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_uploadCollectionReceipt",
+        "type": "object"
+      },
       "Body_uploadCompanyLogo": {
         "properties": {
           "file": {
@@ -355,6 +403,10 @@
             "title": "Has Payment Page",
             "type": "boolean"
           },
+          "has_receipt": {
+            "title": "Has Receipt",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -381,6 +433,28 @@
               }
             ],
             "title": "Phone"
+          },
+          "receipt_content_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Content Type"
+          },
+          "receipt_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Receipt Name"
           },
           "reference": {
             "anyOf": [
@@ -416,9 +490,12 @@
           "reference",
           "status",
           "has_payment_page",
+          "has_receipt",
           "created_at",
           "payment_token",
-          "updated_at"
+          "updated_at",
+          "receipt_name",
+          "receipt_content_type"
         ],
         "title": "CollectionDetail",
         "type": "object"
@@ -542,6 +619,10 @@
             "title": "Has Payment Page",
             "type": "boolean"
           },
+          "has_receipt": {
+            "title": "Has Receipt",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -587,6 +668,7 @@
           "reference",
           "status",
           "has_payment_page",
+          "has_receipt",
           "created_at"
         ],
         "title": "CollectionRow",
@@ -1592,6 +1674,311 @@
           "recent_changes"
         ],
         "title": "PaymentSettingsOut",
+        "type": "object"
+      },
+      "PettyCashEntry": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "original_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Name"
+          },
+          "payment_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment From"
+          },
+          "payment_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment To"
+          },
+          "remarks": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remarks"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id"
+          },
+          "txn_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txn Date"
+          }
+        },
+        "required": [
+          "id",
+          "transaction_id",
+          "txn_date",
+          "payment_to",
+          "payment_from",
+          "remarks",
+          "amount",
+          "content_type",
+          "original_name",
+          "created_at"
+        ],
+        "title": "PettyCashEntry",
+        "type": "object"
+      },
+      "PettyCashFields": {
+        "additionalProperties": false,
+        "description": "What the employer reviewed and confirmed. Empty text becomes null; amount is required.",
+        "properties": {
+          "amount": {
+            "maxLength": 30,
+            "title": "Amount",
+            "type": "string"
+          },
+          "payment_from": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment From"
+          },
+          "payment_to": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment To"
+          },
+          "remarks": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remarks"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id"
+          },
+          "txn_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txn Date"
+          }
+        },
+        "required": [
+          "amount"
+        ],
+        "title": "PettyCashFields",
+        "type": "object"
+      },
+      "PettyCashList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PettyCashEntry"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "total_amount": {
+            "title": "Total Amount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "total_amount"
+        ],
+        "title": "PettyCashList",
+        "type": "object"
+      },
+      "PettyCashProposal": {
+        "description": "Proposed values read from a receipt. Nothing is saved until the employer confirms.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "found": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Found",
+            "type": "array"
+          },
+          "payment_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment From"
+          },
+          "payment_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment To"
+          },
+          "remarks": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remarks"
+          },
+          "text_read": {
+            "title": "Text Read",
+            "type": "boolean"
+          },
+          "transaction_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transaction Id"
+          },
+          "txn_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Txn Date"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "txn_date",
+          "payment_to",
+          "payment_from",
+          "remarks",
+          "amount",
+          "found",
+          "text_read",
+          "duplicate"
+        ],
+        "title": "PettyCashProposal",
         "type": "object"
       },
       "PreviewOut": {
@@ -2818,6 +3205,155 @@
         ]
       }
     },
+    "/api/v1/collections/{collection_id}/receipt": {
+      "delete": {
+        "operationId": "deleteCollectionReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Remove the attached receipt",
+        "tags": [
+          "collections"
+        ]
+      },
+      "get": {
+        "operationId": "getCollectionReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "None"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "The attached receipt file (authenticated; owner only)",
+        "tags": [
+          "collections"
+        ]
+      },
+      "put": {
+        "operationId": "uploadCollectionReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "collection_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Collection Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_uploadCollectionReceipt"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CollectionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Attach (or replace) the payment receipt: image or PDF, max 5 MB",
+        "tags": [
+          "collections"
+        ]
+      }
+    },
     "/api/v1/dashboard": {
       "get": {
         "operationId": "getDashboard",
@@ -3072,6 +3608,395 @@
         "summary": "Current employer (derived from the verified session)",
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/v1/petty-cash": {
+      "get": {
+        "operationId": "listPettyCash",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "date_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PettyCashList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Saved petty-cash entries",
+        "tags": [
+          "petty-cash"
+        ]
+      },
+      "post": {
+        "operationId": "createPettyCashEntry",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_createPettyCashEntry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PettyCashEntry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Save a reviewed entry together with its receipt",
+        "tags": [
+          "petty-cash"
+        ]
+      }
+    },
+    "/api/v1/petty-cash/extract": {
+      "post": {
+        "operationId": "extractPettyCashReceipt",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_extractPettyCashReceipt"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PettyCashProposal"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Read a receipt into proposed fields (nothing is saved)",
+        "tags": [
+          "petty-cash"
+        ]
+      }
+    },
+    "/api/v1/petty-cash/{entry_id}": {
+      "delete": {
+        "operationId": "deletePettyCashEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Delete an entry and its receipt",
+        "tags": [
+          "petty-cash"
+        ]
+      },
+      "get": {
+        "operationId": "getPettyCashEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PettyCashEntry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "One entry",
+        "tags": [
+          "petty-cash"
+        ]
+      },
+      "put": {
+        "operationId": "updatePettyCashEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PettyCashFields"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PettyCashEntry"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Edit an entry",
+        "tags": [
+          "petty-cash"
+        ]
+      }
+    },
+    "/api/v1/petty-cash/{entry_id}/receipt": {
+      "get": {
+        "operationId": "getPettyCashReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "The receipt file (authenticated; owner only)",
+        "tags": [
+          "petty-cash"
         ]
       }
     },

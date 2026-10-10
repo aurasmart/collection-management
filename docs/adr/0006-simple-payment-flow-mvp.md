@@ -1,5 +1,7 @@
 # ADR 0006 — Simple payment-flow MVP (supersedes Stage 3 phases 2–6)
 
+> Amended by [ADR 0008](0008-petty-cash-and-receipts.md): Petty Cash receipt reading (OCR, proposals only) and optional receipts on Mark as Paid.
+
 **Status:** Approved by the owner (re-scope after Phase 1). The Stage 1/2 documents are kept as history; where they
 describe richer behaviour (staging pipeline, payment-request snapshots, encrypted tokens, partial payments, OCR, audit
 history UI) this ADR is what is actually built.

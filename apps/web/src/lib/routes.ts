@@ -6,6 +6,7 @@
 export const routes = {
   dashboard: '/',
   collections: '/collections',
+  pettyCash: '/petty-cash',
   collection: (id: string) => `/collections/${id}`,
   upload: '/upload',
   settings: '/settings',

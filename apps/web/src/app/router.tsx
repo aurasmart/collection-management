@@ -8,6 +8,7 @@ import { ResetPasswordPage } from '@/features/auth/ResetPasswordPage'
 import { NotFoundPage } from '@/app/pages/NotFound'
 import { CollectionDetailPage } from '@/features/collections/CollectionDetailPage'
 import { CollectionsPage } from '@/features/collections/CollectionsPage'
+import { PettyCashPage } from '@/features/petty-cash/PettyCashPage'
 import { DashboardPage } from '@/features/dashboard/DashboardPage'
 import { UploadPage } from '@/features/imports/UploadPage'
 import { PayPage } from '@/features/pay/PayPage'
@@ -33,6 +34,7 @@ export const routeObjects: RouteObject[] = [
           { index: true, element: <DashboardPage /> },
           { path: 'collections', element: <CollectionsPage /> },
           { path: 'collections/:id', element: <CollectionDetailPage /> },
+          { path: 'petty-cash', element: <PettyCashPage /> },
           { path: 'upload', element: <UploadPage /> },
           {
             path: 'settings',

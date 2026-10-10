@@ -129,6 +129,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/collections/{collection_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The attached receipt file (authenticated; owner only) */
+        get: operations["getCollectionReceipt"];
+        /** Attach (or replace) the payment receipt: image or PDF, max 5 MB */
+        put: operations["uploadCollectionReceipt"];
+        post?: never;
+        /** Remove the attached receipt */
+        delete: operations["deleteCollectionReceipt"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard": {
         parameters: {
             query?: never;
@@ -240,6 +259,77 @@ export interface paths {
         };
         /** Current employer (derived from the verified session) */
         get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/petty-cash": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Saved petty-cash entries */
+        get: operations["listPettyCash"];
+        put?: never;
+        /** Save a reviewed entry together with its receipt */
+        post: operations["createPettyCashEntry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/petty-cash/extract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read a receipt into proposed fields (nothing is saved) */
+        post: operations["extractPettyCashReceipt"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/petty-cash/{entry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One entry */
+        get: operations["getPettyCashEntry"];
+        /** Edit an entry */
+        put: operations["updatePettyCashEntry"];
+        post?: never;
+        /** Delete an entry and its receipt */
+        delete: operations["deletePettyCashEntry"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/petty-cash/{entry_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The receipt file (authenticated; owner only) */
+        get: operations["getPettyCashReceipt"];
         put?: never;
         post?: never;
         delete?: never;
@@ -467,6 +557,21 @@ export interface components {
             /** Table */
             table?: number | null;
         };
+        /** Body_createPettyCashEntry */
+        Body_createPettyCashEntry: {
+            /**
+             * Fields
+             * @description JSON of the reviewed fields
+             */
+            fields: string;
+            /** File */
+            file: string;
+        };
+        /** Body_extractPettyCashReceipt */
+        Body_extractPettyCashReceipt: {
+            /** File */
+            file: string;
+        };
         /** Body_previewImport */
         Body_previewImport: {
             /**
@@ -487,6 +592,11 @@ export interface components {
             sheet_url?: string | null;
             /** Table */
             table?: number | null;
+        };
+        /** Body_uploadCollectionReceipt */
+        Body_uploadCollectionReceipt: {
+            /** File */
+            file: string;
         };
         /** Body_uploadCompanyLogo */
         Body_uploadCompanyLogo: {
@@ -513,6 +623,8 @@ export interface components {
             due_date: string | null;
             /** Has Payment Page */
             has_payment_page: boolean;
+            /** Has Receipt */
+            has_receipt: boolean;
             /**
              * Id
              * Format: uuid
@@ -522,6 +634,10 @@ export interface components {
             payment_token: string | null;
             /** Phone */
             phone: string | null;
+            /** Receipt Content Type */
+            receipt_content_type: string | null;
+            /** Receipt Name */
+            receipt_name: string | null;
             /** Reference */
             reference: string | null;
             /**
@@ -570,6 +686,8 @@ export interface components {
             due_date: string | null;
             /** Has Payment Page */
             has_payment_page: boolean;
+            /** Has Receipt */
+            has_receipt: boolean;
             /**
              * Id
              * Format: uuid
@@ -888,6 +1006,86 @@ export interface components {
             upi_number: string | null;
             /** Upi Number Enabled */
             upi_number_enabled: boolean;
+        };
+        /** PettyCashEntry */
+        PettyCashEntry: {
+            /** Amount */
+            amount: string;
+            /** Content Type */
+            content_type: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Original Name */
+            original_name: string | null;
+            /** Payment From */
+            payment_from: string | null;
+            /** Payment To */
+            payment_to: string | null;
+            /** Remarks */
+            remarks: string | null;
+            /** Transaction Id */
+            transaction_id: string | null;
+            /** Txn Date */
+            txn_date: string | null;
+        };
+        /**
+         * PettyCashFields
+         * @description What the employer reviewed and confirmed. Empty text becomes null; amount is required.
+         */
+        PettyCashFields: {
+            /** Amount */
+            amount: string;
+            /** Payment From */
+            payment_from?: string | null;
+            /** Payment To */
+            payment_to?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /** Transaction Id */
+            transaction_id?: string | null;
+            /** Txn Date */
+            txn_date?: string | null;
+        };
+        /** PettyCashList */
+        PettyCashList: {
+            /** Items */
+            items: components["schemas"]["PettyCashEntry"][];
+            /** Total */
+            total: number;
+            /** Total Amount */
+            total_amount: string;
+        };
+        /**
+         * PettyCashProposal
+         * @description Proposed values read from a receipt. Nothing is saved until the employer confirms.
+         */
+        PettyCashProposal: {
+            /** Amount */
+            amount: string | null;
+            /** Duplicate */
+            duplicate: boolean;
+            /** Found */
+            found: string[];
+            /** Payment From */
+            payment_from: string | null;
+            /** Payment To */
+            payment_to: string | null;
+            /** Remarks */
+            remarks: string | null;
+            /** Text Read */
+            text_read: boolean;
+            /** Transaction Id */
+            transaction_id: string | null;
+            /** Txn Date */
+            txn_date: string | null;
         };
         /** PreviewOut */
         PreviewOut: {
@@ -1371,6 +1569,110 @@ export interface operations {
             };
         };
     };
+    getCollectionReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description None */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uploadCollectionReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_uploadCollectionReceipt"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deleteCollectionReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collection_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     getDashboard: {
         parameters: {
             query?: never;
@@ -1557,6 +1859,233 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeResponse"];
+                };
+            };
+        };
+    };
+    listPettyCash: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                date_from?: string | null;
+                date_to?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PettyCashList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createPettyCashEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_createPettyCashEntry"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PettyCashEntry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    extractPettyCashReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_extractPettyCashReceipt"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PettyCashProposal"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPettyCashEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PettyCashEntry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    updatePettyCashEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PettyCashFields"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PettyCashEntry"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deletePettyCashEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    getPettyCashReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpDown, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { ArrowUpDown, Pencil, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router'
 import { Alert, Button, Card, EmptyState, Skeleton } from '@/components/ui'
 import { DeleteDialog } from '@/features/collections/DeleteDialog'
@@ -482,14 +482,28 @@ export function CollectionsPage() {
                     <StatusPill status={row.status} />
                   </Cell>
                   <Cell label="Action">
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        to={routes.collection(row.id)}
-                        aria-label={`Open ${row.customer_name}`}
-                        className="inline-flex min-h-10 items-center rounded-control border border-accent px-3 font-medium text-accent hover:bg-accent-soft"
-                      >
-                        Open
-                      </Link>
+                    <div className="flex flex-nowrap items-center gap-2 whitespace-nowrap">
+                      {row.status === 'PAID' ? (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled
+                          title="Mark as unpaid to edit"
+                          aria-label={`Edit ${row.customer_name}`}
+                        >
+                          <Pencil className="size-4" aria-hidden="true" />
+                          Edit
+                        </Button>
+                      ) : (
+                        <Link
+                          to={`${routes.collection(row.id)}?edit=1`}
+                          aria-label={`Edit ${row.customer_name}`}
+                          className="inline-flex min-h-10 items-center gap-1.5 rounded-control border border-accent px-3 font-medium text-accent hover:bg-accent-soft"
+                        >
+                          <Pencil className="size-4" aria-hidden="true" />
+                          Edit
+                        </Link>
+                      )}
                       {row.status === 'PENDING' && (
                         <Button
                           size="sm"

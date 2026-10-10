@@ -81,7 +81,7 @@ Supabase user if the database step fails. For local development without Supabase
 Configure the web app with `apps/web/.env.local` (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`,
 `VITE_PUBLIC_APP_URL`). Without them the app shows "Sign-in isn't configured" instead of redirecting in a loop.
 
-QR images are stored in a **private** bucket (`QR_BUCKET`, default `qr`) via `STORAGE_BACKEND=supabase`; the default
+QR images and logos live in a **private** bucket (`QR_BUCKET`, default `qr`); receipts in a second private bucket (`RECEIPTS_BUCKET`, default `receipts`), via `STORAGE_BACKEND=supabase`; the default
 `local` backend writes to `.local-storage/` for development only and is rejected in staging/production.
 
 Verification notes: ADR 0004 (re-authentication) and ADR 0005 (password reset: PKCE vs hash router) in `docs/adr/`.

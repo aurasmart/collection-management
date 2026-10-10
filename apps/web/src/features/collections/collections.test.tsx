@@ -189,6 +189,71 @@ describe('Collections list', () => {
   })
 })
 
+describe('Row actions and receipts', () => {
+  it('keeps Edit, Mark paid and Delete together on one non-wrapping line', async () => {
+    open('/collections', { 'GET /api/v1/collections': () => list([item()]) })
+    const mark = await screen.findByRole('button', { name: 'Mark paid for Rahul Sharma' })
+    const row = mark.parentElement as HTMLElement
+    expect(row.className).toContain('flex-nowrap')
+    expect(row.className).not.toContain('flex-wrap')
+    const labels = Array.from(row.querySelectorAll('a, button')).map((el) =>
+      el.getAttribute('aria-label'),
+    )
+    expect(labels).toEqual([
+      'Edit Rahul Sharma',
+      'Mark paid for Rahul Sharma',
+      'Delete Rahul Sharma',
+    ])
+  })
+
+  it('Mark as Paid works without a receipt', async () => {
+    const api = open('/collections', {
+      'GET /api/v1/collections': () => list([item()]),
+      [`POST /api/v1/collections/${ID}/mark-paid`]: () => json(detail({ status: 'PAID' })),
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark paid for Rahul Sharma' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Mark as Paid' }),
+    )
+    await waitFor(() =>
+      expect(api.called(`POST /api/v1/collections/${ID}/mark-paid`)).toHaveLength(1),
+    )
+    expect(api.called(`PUT /api/v1/collections/${ID}/receipt`)).toHaveLength(0)
+  })
+
+  it('Mark as Paid with a chosen receipt marks paid, then uploads the file', async () => {
+    const api = open('/collections', {
+      'GET /api/v1/collections': () => list([item()]),
+      [`POST /api/v1/collections/${ID}/mark-paid`]: () => json(detail({ status: 'PAID' })),
+      [`PUT /api/v1/collections/${ID}/receipt`]: () =>
+        json(detail({ status: 'PAID', has_receipt: true, receipt_name: 'upi.png' })),
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark paid for Rahul Sharma' }))
+    const dialog = await screen.findByRole('dialog')
+    const file = new File(['x'], 'upi.png', { type: 'image/png' })
+    await userEvent.upload(within(dialog).getByLabelText('Attach receipt'), file)
+    expect(within(dialog).getByText('upi.png')).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Mark as Paid' }))
+    await waitFor(() => expect(api.called(`PUT /api/v1/collections/${ID}/receipt`)).toHaveLength(1))
+    expect(api.called(`POST /api/v1/collections/${ID}/mark-paid`)).toHaveLength(1)
+    const form = api.called(`PUT /api/v1/collections/${ID}/receipt`)[0]!.body as FormData
+    expect((form.get('file') as File).size).toBe(1)
+  })
+
+  it('refuses a file that is not an image or PDF', async () => {
+    open('/collections', { 'GET /api/v1/collections': () => list([item()]) })
+    await userEvent.click(await screen.findByRole('button', { name: 'Mark paid for Rahul Sharma' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.upload(
+      within(dialog).getByLabelText('Attach receipt'),
+      new File(['x'], 'notes.txt', { type: 'text/plain' }),
+      { applyAccept: false },
+    )
+    expect(await within(dialog).findByText(/Choose a PNG, JPG or WebP image/)).toBeInTheDocument()
+    expect(within(dialog).queryByText('notes.txt')).not.toBeInTheDocument()
+  })
+})
+
 describe('Collections list extras', () => {
   it('says so plainly when a search finds nobody', async () => {
     open('/collections', { 'GET /api/v1/collections': () => list([]) })

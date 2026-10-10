@@ -69,6 +69,8 @@ TENANT_TABLES = [
     "payment_settings",
     "company_profiles",
     "notifications",
+    "collection_receipts",
+    "petty_cash_entries",
     "audit_events",
 ]
 
@@ -209,6 +211,20 @@ def make_tenant(admin_engine: Engine) -> Callable[[str], Tenant]:
                     "VALUES (:e, :c, 'MANUAL')"
                 ),
                 {"e": eid, "c": ids["collection"]},
+            )
+            c.execute(
+                text(
+                    "INSERT INTO collection_receipts (employer_id, collection_id, storage_key, "
+                    "content_type, size_bytes) VALUES (:e, :c, 'k', 'image/png', 1)"
+                ),
+                {"e": eid, "c": ids["collection"]},
+            )
+            c.execute(
+                text(
+                    "INSERT INTO petty_cash_entries (employer_id, amount, storage_key, "
+                    "content_type) VALUES (:e, 100, 'k', 'image/png')"
+                ),
+                {"e": eid},
             )
             c.execute(
                 text(

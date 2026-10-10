@@ -28,10 +28,11 @@ beforeEach(() => {
 })
 
 describe('App shell (signed in)', () => {
-  it('has exactly the four approved primary navigation items', () => {
+  it('has exactly the five primary navigation items', () => {
     expect(NAV_ITEMS.map((n) => n.label)).toEqual([
       'Dashboard',
       'Collections',
+      'Petty Cash',
       'Import',
       'Settings',
     ])

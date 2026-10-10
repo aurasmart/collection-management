@@ -5,16 +5,25 @@ import {
   Link2,
   MessageCircle,
   MessageSquare,
+  Paperclip,
   Pencil,
   Trash2,
 } from 'lucide-react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { Alert, Button, Card, Skeleton, useToast } from '@/components/ui'
 import { DeleteDialog } from '@/features/collections/DeleteDialog'
 import { EditDialog } from '@/features/collections/EditDialog'
 import { MarkDialog } from '@/features/collections/MarkDialog'
 import { StatusPill } from '@/features/collections/StatusPill'
-import { useCollection, useCollectionAction } from '@/features/collections/api'
+import {
+  fetchReceipt,
+  useCollection,
+  useCollectionAction,
+  useRemoveReceipt,
+  useUploadReceipt,
+} from '@/features/collections/api'
+import { ReceiptPicker } from '@/features/receipts/ReceiptPicker'
+import { openReceipt } from '@/lib/receipt'
 import { copyText } from '@/lib/clipboard'
 import { formatPhone, paymentMessage, smsUrl, whatsappUrl } from '@/lib/contact'
 import { formatDate } from '@/lib/date'
@@ -28,8 +37,12 @@ export function CollectionDetailPage() {
   const { id = '' } = useParams()
   const query = useCollection(id)
   const generate = useCollectionAction(id, 'payment-page')
+  const uploadReceipt = useUploadReceipt(id)
+  const removeReceipt = useRemoveReceipt(id)
+  const [receiptProblem, setReceiptProblem] = useState<string | null>(null)
   const { toast } = useToast()
-  const [editing, setEditing] = useState(false)
+  const [searchParams] = useSearchParams()
+  const [editing, setEditing] = useState(() => searchParams.get('edit') === '1')
   const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
   const [marking, setMarking] = useState<'paid' | 'unpaid' | null>(null)
@@ -225,7 +238,65 @@ export function CollectionDetailPage() {
         )}
       </Card>
 
-      <EditDialog customer={c} open={editing} onOpenChange={setEditing} />
+      <Card aria-label="Receipt" className="flex flex-col gap-3">
+        <h2 className="text-lg font-semibold">Receipt</h2>
+        {c.has_receipt ? (
+          <p className="inline-flex items-center gap-2 text-ink-2">
+            <Paperclip className="size-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{c.receipt_name ?? 'Receipt attached'}</span>
+          </p>
+        ) : (
+          <p className="text-ink-2">
+            Keep proof of payment here: a UPI screenshot, bank statement PDF or any image.
+          </p>
+        )}
+        {(receiptProblem || uploadReceipt.isError || removeReceipt.isError) && (
+          <Alert tone="error">
+            {receiptProblem ??
+              (uploadReceipt.error?.message || "Couldn't update the receipt. Please try again.")}
+          </Alert>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {c.has_receipt && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={async () => {
+                if (!(await openReceipt(() => fetchReceipt(id))))
+                  toast({ title: "Couldn't open the receipt", tone: 'error' })
+              }}
+            >
+              <ExternalLink className="size-4" aria-hidden="true" />
+              View receipt
+            </Button>
+          )}
+          <ReceiptPicker
+            file={null}
+            label={c.has_receipt ? 'Replace receipt' : 'Attach receipt'}
+            disabled={uploadReceipt.isPending}
+            onProblem={setReceiptProblem}
+            onChange={(file) => {
+              if (file)
+                uploadReceipt.mutate(file, {
+                  onSuccess: () => toast({ title: 'Receipt saved', tone: 'success' }),
+                })
+            }}
+          />
+          {c.has_receipt && (
+            <Button
+              variant="destructive-outline"
+              size="sm"
+              loading={removeReceipt.isPending}
+              onClick={() => removeReceipt.mutate()}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              Remove receipt
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      <EditDialog customer={c} open={editing && !paid} onOpenChange={setEditing} />
       <DeleteDialog
         customers={[c]}
         open={deleting}

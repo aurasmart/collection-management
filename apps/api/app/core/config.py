@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     storage_backend: Literal["local", "supabase"] = "local"
     local_storage_dir: str = ".local-storage"
     qr_bucket: str = "qr"
+    receipts_bucket: str = "receipts"  # payment and petty-cash receipts (ADR 0008)
 
     # Payment-token crypto (docs/adr/0001). Backend-only.
     token_enc_key: str  # base64, 32 bytes (AES-256-GCM)
