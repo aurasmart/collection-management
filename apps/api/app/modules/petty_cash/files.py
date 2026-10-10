@@ -26,7 +26,10 @@ from app.modules.settings.service import unprocessable
 
 RECEIPT_MAX_BYTES = 5 * 1024 * 1024
 OCR_PDF_PAGES = 3
-OCR_MIN_WIDTH = 1400  # phone screenshots are small; upscaling helps Tesseract noticeably
+OCR_MIN_WIDTH = 1000  # small screenshots are upscaled to this; Tesseract reads them better
+OCR_MAX_WIDTH = 1200  # larger ones are shrunk: the free host's CPU is slow, time grows with pixels
+MAIN_TIMEOUT = 50.0
+BANNER_TIMEOUT = 25.0
 _IMAGE_TYPES = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}
 _PDF = "application/pdf"
 _MIN_TEXT_CHARS = 40  # fewer than this on a PDF page => it is a scan, use OCR
@@ -69,6 +72,9 @@ def _prepare(image: Image.Image) -> Image.Image:
     if gray.width < OCR_MIN_WIDTH:
         scale = OCR_MIN_WIDTH / gray.width
         gray = gray.resize((OCR_MIN_WIDTH, round(gray.height * scale)), Image.Resampling.LANCZOS)
+    elif gray.width > OCR_MAX_WIDTH:
+        scale = OCR_MAX_WIDTH / gray.width
+        gray = gray.resize((OCR_MAX_WIDTH, round(gray.height * scale)), Image.Resampling.LANCZOS)
     return gray
 
 
@@ -88,14 +94,13 @@ def _image_text(provider: OcrProvider, img: Image.Image) -> str:
     """The whole image, plus a second look at the top banner where UPI apps print the amount in
     large white-on-colour type that the main pass skips."""
     gray = _prepare(img)
-    text = provider.recognize(gray, timeout=_timeout())
+    text = provider.recognize(gray, timeout=MAIN_TIMEOUT)
     banner = gray.crop((0, 0, gray.width, int(gray.height * 0.25)))
-    banner = banner.resize((banner.width * 2, banner.height * 2), Image.Resampling.LANCZOS)
     with contextlib.suppress(OcrError):  # the main pass already worked; the banner is a bonus
         if isinstance(provider, TesseractProvider):
-            text += "\n" + provider.recognize(banner, timeout=_timeout(), psm=11)
+            text += "\n" + provider.recognize(banner, timeout=BANNER_TIMEOUT, psm=11)
         else:
-            text += "\n" + provider.recognize(banner, timeout=_timeout())
+            text += "\n" + provider.recognize(banner, timeout=BANNER_TIMEOUT)
     return text
 
 
