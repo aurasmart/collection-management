@@ -174,7 +174,8 @@ function EntryForm({
         <form id="petty-cash-form" onSubmit={save} className="flex flex-col gap-4" noValidate>
           {proposal && !proposal.text_read && (
             <Alert tone="warning" title="We couldn't read this receipt">
-              Fill in the details by hand. The receipt file will still be saved with the entry.
+              {proposal.read_problem ? `${proposal.read_problem}. ` : ''}Fill in the details by
+              hand. The receipt file will still be saved with the entry.
             </Alert>
           )}
           {proposal?.duplicate && (

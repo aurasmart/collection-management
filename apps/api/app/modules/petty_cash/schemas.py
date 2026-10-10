@@ -79,4 +79,5 @@ class PettyCashProposal(BaseModel):
     amount: str | None
     found: list[str]
     text_read: bool  # false: the text on the file could not be read; fill the form by hand
+    read_problem: str | None  # why the text could not be read (a fixed message, never content)
     duplicate: bool  # an entry with this transaction id is already saved

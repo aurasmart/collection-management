@@ -32,6 +32,7 @@ const proposal = {
   amount: '162840.00',
   found: ['transaction_id', 'txn_date', 'payment_to', 'payment_from', 'remarks', 'amount'],
   text_read: true,
+  read_problem: null,
   duplicate: false,
 }
 
@@ -138,6 +139,7 @@ describe('Petty Cash', () => {
           amount: null,
           found: [],
           text_read: false,
+          read_problem: 'Text recognition is switched off',
           duplicate: false,
         }),
     })

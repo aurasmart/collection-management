@@ -103,6 +103,7 @@ def _best_effort_delete(storage: StorageService, bucket: str, key: str) -> None:
 def extract(file: UploadFile, user: User, ctx: Ctx) -> PettyCashProposal:
     raw = files.read_upload(file.file.read(files.RECEIPT_MAX_BYTES + 1))
     content_type = files.check_receipt(raw)
+    read_problem: str | None = None
     try:
         parsed = parse_receipt(files.receipt_text(raw, content_type))
         text_read = True
@@ -118,6 +119,7 @@ def extract(file: UploadFile, user: User, ctx: Ctx) -> PettyCashProposal:
         )
         parsed = parse_receipt("")
         text_read = False
+        read_problem = f"{exc} ({type(cause).__name__})" if cause else str(exc)
     duplicate = False
     if parsed.transaction_id:
         with tenant_session(ctx.employer_id) as db:
@@ -136,6 +138,7 @@ def extract(file: UploadFile, user: User, ctx: Ctx) -> PettyCashProposal:
         amount=parsed.amount,
         found=parsed.found(),
         text_read=text_read,
+        read_problem=read_problem,
         duplicate=duplicate,
     )
 

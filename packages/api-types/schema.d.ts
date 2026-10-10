@@ -1078,6 +1078,8 @@ export interface components {
             payment_from: string | null;
             /** Payment To */
             payment_to: string | null;
+            /** Read Problem */
+            read_problem: string | null;
             /** Remarks */
             remarks: string | null;
             /** Text Read */

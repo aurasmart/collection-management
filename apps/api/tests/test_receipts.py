@@ -194,6 +194,7 @@ def test_extract_without_ocr_returns_an_empty_form(
     monkeypatch.setattr("app.modules.petty_cash.files.receipt_text", unavailable)
     body = extract(client, make_employer("a"), png()).json()
     assert body["text_read"] is False and body["found"] == [] and body["amount"] is None
+    assert body["read_problem"] == "off"
 
 
 def test_extract_rejects_a_non_receipt_file(

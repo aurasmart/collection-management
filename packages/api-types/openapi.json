@@ -1928,6 +1928,17 @@
             ],
             "title": "Payment To"
           },
+          "read_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read Problem"
+          },
           "remarks": {
             "anyOf": [
               {
@@ -1976,6 +1987,7 @@
           "amount",
           "found",
           "text_read",
+          "read_problem",
           "duplicate"
         ],
         "title": "PettyCashProposal",
