@@ -27,7 +27,7 @@ class SupabaseStorage:
             headers={**self._headers, "Content-Type": content_type, "x-upsert": "true"},
         )
         if resp.status_code >= 300:
-            raise StorageError(f"upload failed ({resp.status_code})")
+            raise StorageError(f"upload failed ({resp.status_code}): {_reason(resp)}")
 
     def get(self, bucket: str, key: str) -> bytes | None:
         # Authenticated endpoint (not /public/): works for private buckets with the service key.
@@ -42,3 +42,12 @@ class SupabaseStorage:
         resp = self._client.delete(self._url(bucket, key), headers=self._headers)
         if resp.status_code >= 300 and resp.status_code not in (400, 404):
             raise StorageError(f"delete failed ({resp.status_code})")
+
+
+def _reason(resp: httpx.Response) -> str:
+    """Supabase's own explanation (e.g. "Bucket not found"); never includes our credentials."""
+    try:
+        body = resp.json()
+        return str(body.get("message") or body.get("error") or "")[:200]
+    except Exception:
+        return ""
