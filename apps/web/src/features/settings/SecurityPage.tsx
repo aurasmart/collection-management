@@ -14,7 +14,7 @@ export function SecurityPage() {
           Password
         </h3>
         <ul className="list-disc space-y-1 pl-5 text-ink-2">
-          <li>Your password must be at least 12 characters.</li>
+          <li>Your password must be at least 8 characters.</li>
           <li>We never see or store your password in this app. Sign-in is handled securely.</li>
           <li>
             You can change it any time from{' '}

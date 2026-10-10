@@ -9,7 +9,7 @@ import { AuthLayout } from '@/features/auth/AuthLayout'
 import { useAuth, type SignUpResult } from '@/features/auth/AuthProvider'
 import { routes } from '@/lib/routes'
 
-export const MIN_PASSWORD_LENGTH = 12
+export const MIN_PASSWORD_LENGTH = 8
 
 const schema = z
   .object({

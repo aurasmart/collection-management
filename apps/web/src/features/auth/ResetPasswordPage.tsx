@@ -9,7 +9,7 @@ import { readAuthRedirect, scrubAuthParams } from '@/lib/auth-redirect'
 import { routes } from '@/lib/routes'
 import { supabase } from '@/lib/supabase'
 
-export const MIN_PASSWORD_LENGTH = 12
+export const MIN_PASSWORD_LENGTH = 8
 
 const schema = z
   .object({

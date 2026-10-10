@@ -75,7 +75,7 @@ describe('sign up page', () => {
     expect(await screen.findByText('Enter your full name')).toBeInTheDocument()
     expect(screen.getByText('Enter your work email')).toBeInTheDocument()
     expect(screen.getByText('Enter your company or business name')).toBeInTheDocument()
-    expect(screen.getByText('Use at least 12 characters')).toBeInTheDocument()
+    expect(screen.getByText('Use at least 8 characters')).toBeInTheDocument()
     expect(screen.getByText('Re-enter your password')).toBeInTheDocument()
     expect(fake.auth.signUp).not.toHaveBeenCalled()
   })
@@ -83,7 +83,7 @@ describe('sign up page', () => {
   it.each([
     ['Work email', 'not-an-email', 'Enter a valid email address'],
     ['Phone number', '12', 'Enter a valid phone number'],
-    ['Password', 'short', 'Use at least 12 characters'],
+    ['Password', 'short', 'Use at least 8 characters'],
   ])('%s "%s" is explained', async (label, value, message) => {
     await open()
     await fillValid({ [label]: '' })

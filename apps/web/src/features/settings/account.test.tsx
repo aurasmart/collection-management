@@ -53,16 +53,16 @@ describe('Change password', () => {
     await open()
     await submit()
     expect(await screen.findByText('Enter your current password')).toBeInTheDocument()
-    expect(screen.getByText('Use at least 12 characters')).toBeInTheDocument()
+    expect(screen.getByText('Use at least 8 characters')).toBeInTheDocument()
     expect(screen.getByText('Re-enter your new password')).toBeInTheDocument()
     expect(fake.auth.updateUser).not.toHaveBeenCalled()
   })
 
-  it('enforces the 12-character minimum and a matching confirmation', async () => {
+  it('enforces the 8-character minimum and a matching confirmation', async () => {
     await open()
-    await fill('old-password-123', 'short-pw', 'different')
+    await fill('old-password-123', 'short', 'different')
     await submit()
-    expect(await screen.findByText('Use at least 12 characters')).toBeInTheDocument()
+    expect(await screen.findByText('Use at least 8 characters')).toBeInTheDocument()
     expect(screen.getByText('Passwords do not match')).toBeInTheDocument()
     expect(fake.auth.updateUser).not.toHaveBeenCalled()
   })
@@ -133,7 +133,7 @@ describe('Change password', () => {
 describe('Security', () => {
   it('explains the password rules and when the password is asked again', async () => {
     await open('/settings/security')
-    expect(screen.getByText(/at least 12 characters/)).toBeInTheDocument()
+    expect(screen.getByText(/at least 8 characters/)).toBeInTheDocument()
     expect(screen.getByText('When we ask for your password again')).toBeInTheDocument()
     expect(screen.getByText(/within the last 5 minutes/)).toBeInTheDocument()
     const links = screen.getAllByRole('link', { name: /Payment details|Company profile|Account/ })

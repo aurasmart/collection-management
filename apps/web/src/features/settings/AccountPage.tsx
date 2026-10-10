@@ -9,7 +9,7 @@ import { useAuth, type ChangePasswordResult } from '@/features/auth/AuthProvider
 import { useMe } from '@/features/auth/useMe'
 import { routes } from '@/lib/routes'
 
-export const MIN_PASSWORD_LENGTH = 12
+export const MIN_PASSWORD_LENGTH = 8
 
 const schema = z
   .object({

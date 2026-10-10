@@ -24,11 +24,11 @@ Status: accepted (owner request, supersedes the "no signup UI" rule in ADR 0003 
 - Duplicate email: Supabase refuses it (the browser reads both the error and the empty-identities answer),
   and `create_workspace` refuses an email already owned by another auth user.
 - Rate limiting for sign-up itself is Supabase Auth's (per-IP and per-email limits). Keep them enabled.
-- Password rules: 12+ characters, enforced in the form; set the same minimum in the Supabase project.
+- Password rules: 8+ characters, enforced in the form; set the same minimum in the Supabase project.
 
 ## Required Supabase project settings
 "Enable email signups" ON; "Confirm email" ON (recommended); Site URL and Redirect URLs include the app
-address (confirmation links return to `/#/login?confirmed=1`); minimum password length 12.
+address (confirmation links return to `/#/login?confirmed=1`); minimum password length 8.
 
 ## Not changed
 No migration. Existing accounts are untouched (`create_workspace` is idempotent per auth user).

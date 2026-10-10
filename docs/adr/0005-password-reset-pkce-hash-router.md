@@ -26,7 +26,7 @@ Other facts established
 - Token refresh keeps the original `amr` password timestamp (see ADR 0004).
 
 ## Required Supabase configuration (see docs/runbook.md)
-Add the exact app URL (including `/#/reset-password`) to *Redirect URLs*; disable sign-ups; set minimum password length 12.
+Add the exact app URL (including `/#/reset-password`) to *Redirect URLs*; disable sign-ups; set minimum password length 8.
 
 ## Limits of this verification
 Verified against self-built open-source GoTrue, **not a hosted Supabase project**. The hosted gateway, hosted SMTP,

@@ -252,7 +252,7 @@ describe('password reset: PKCE + Supabase + hash router', () => {
     await userEvent.type(await screen.findByLabelText(/^new password/i), 'short')
     await userEvent.type(screen.getByLabelText(/^confirm new password/i), 'different')
     await userEvent.click(screen.getByRole('button', { name: 'Set new password' }))
-    expect(await screen.findByText('Use at least 12 characters')).toBeInTheDocument()
+    expect(await screen.findByText('Use at least 8 characters')).toBeInTheDocument()
     expect(screen.getByText('Passwords do not match')).toBeInTheDocument()
     await waitFor(() => expect(gotrue.state.passwordUpdates).toHaveLength(0))
   })

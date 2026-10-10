@@ -26,7 +26,7 @@ from sqlalchemy import create_engine, text
 from app.core.config import get_settings
 from app.workspace import WorkspaceError, clean_workspace, create_workspace
 
-MIN_PASSWORD_LENGTH = 12
+MIN_PASSWORD_LENGTH = 8
 
 
 class ProvisioningError(Exception):
