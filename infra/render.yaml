@@ -25,7 +25,7 @@ services:
       - key: QR_BUCKET
         value: qr
       - key: RECEIPTS_BUCKET
-        value: receipts
+        value: receipt
       - key: OCR_ENABLED
         value: "true"                  # scanned PDFs (Tesseract is installed in the image)
       - key: DATABASE_URL
