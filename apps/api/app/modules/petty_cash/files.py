@@ -69,6 +69,14 @@ def clean_name(name: str | None) -> str | None:
     return base[:200] or None
 
 
+def _span(profile: Image.Image, length: int) -> tuple[int, int] | None:
+    """First and last position whose share of 'content' pixels is more than a speck (a stray dot
+    or a notification badge in the corner must not count)."""
+    values = profile.tobytes()  # mode "L": one byte per pixel
+    hot = [i for i, v in enumerate(values) if v > 255 * 0.03]
+    return (hot[0], hot[-1] + 1) if hot else None
+
+
 def _crop_to_content(gray: Image.Image) -> Image.Image:
     """Drop a plain border (e.g. a phone screen shown on a black desktop): the text is then scaled
     by its own size, not by the size of the surrounding empty space."""
@@ -76,15 +84,16 @@ def _crop_to_content(gray: Image.Image) -> Image.Image:
     corners = [cast(int, gray.getpixel(p)) for p in ((0, 0), (last_x, 0), (0, last_y))]
     background = sorted(corners)[1]  # the median corner
     mask = gray.point(lambda v: 255 if abs(v - background) > 24 else 0)
-    box = mask.getbbox()
-    if box is None:
+    cols = _span(mask.resize((gray.width, 1), Image.Resampling.BOX), gray.width)
+    rows = _span(mask.resize((1, gray.height), Image.Resampling.BOX), gray.height)
+    if cols is None or rows is None:
         return gray
     pad = 12
     box = (
-        max(0, box[0] - pad),
-        max(0, box[1] - pad),
-        min(gray.width, box[2] + pad),
-        min(gray.height, box[3] + pad),
+        max(0, cols[0] - pad),
+        max(0, rows[0] - pad),
+        min(gray.width, cols[1] + pad),
+        min(gray.height, rows[1] + pad),
     )
     area = (box[2] - box[0]) * (box[3] - box[1])
     return gray.crop(box) if area < 0.9 * gray.width * gray.height else gray

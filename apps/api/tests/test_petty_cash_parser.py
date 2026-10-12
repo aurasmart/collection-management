@@ -160,3 +160,38 @@ def test_phonepe_receipt_with_the_payee_handle_under_the_name() -> None:
 
 def test_a_genuine_amount_is_kept_when_both_readings_agree() -> None:
     assert parse_receipt(PHONEPE + ALT_MARK + "Amount 71,020.00\n").amount == "71020.00"
+
+
+def test_remarks_under_payment_from_when_the_remarks_label_is_lost() -> None:
+    # The pale "Remarks" label was read as junk glued to the remark; the second reading has the
+    # remark on its own lines, right under the UPI id.
+    main = (
+        "UPI payment successful\n"
+        "Transaction reference ID: 173534533139 (‘0\n"
+        "1 Sep '26, 02:44 PM\n\n"
+        "Payment to C Vinay\n"
+        "@ Phonepe | vinaypeace@ybl\n"
+        "Amount %415.00\n"
+        "Payment from latig73232.ibz@icici\n"
+        "Sarnarle porter for amruppa\n"
+        "- : material 50 extra by me\n"
+        "“) pdf Y <\n"
+        "< Back to home @® Another payment\n"
+    )
+    alt = (
+        "C Vinay\n@ Phonepe | vinaypeace@ybl\n: 2415.00\nlatig73232.ibz@icici\n"
+        "porter for amruppa\nmaterial 50 extra by me\n“) pif ¥& <\nPOWERED BY\n"
+    )
+    got = parse_receipt(main + ALT_MARK + alt)
+    assert got.payment_to == "C Vinay"
+    assert got.payment_from == "latig73232.ibz@icici"
+    assert got.remarks == "porter for amruppa material 50 extra by me"
+    assert got.amount == "415.00"
+
+
+def test_no_remarks_row_means_no_remarks_not_the_advert_below() -> None:
+    text = (
+        "Payment to ABC\nAmount 500.00\nPayment from me@icici\n“) pdf & <\n"
+        "Corporate Forex Travel Card\nPOWERED BY\n"
+    )
+    assert parse_receipt(text).remarks is None

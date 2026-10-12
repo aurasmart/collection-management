@@ -327,3 +327,17 @@ def test_export_is_private_and_needs_sign_in(
     save(client, a, FIELDS)
     assert len(sheet(export(client, b))) == 2  # just the header and a zero total
     assert client.get("/api/v1/petty-cash/export").status_code in (401, 403)
+
+
+def test_a_phone_screen_on_a_black_desktop_is_cropped_and_a_stray_dot_is_ignored() -> None:
+    from PIL import ImageDraw
+
+    from app.modules.petty_cash.files import _crop_to_content
+
+    img = Image.new("L", (2000, 1250), 0)
+    ImageDraw.Draw(img).rectangle((705, 49, 1294, 1249), fill=255)  # the white card
+    ImageDraw.Draw(img).ellipse((1975, 2, 1990, 17), fill=200)  # a notification dot in the corner
+    cropped = _crop_to_content(img)
+    assert cropped.width < 650 and cropped.height > 1150
+    plain = Image.new("L", (800, 1200), 255)  # nothing to crop on an ordinary page
+    assert _crop_to_content(plain).size == (800, 1200)

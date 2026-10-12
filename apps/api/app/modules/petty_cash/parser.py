@@ -195,6 +195,8 @@ def _labelled(lines: list[str], labels: tuple[str, ...], *, continuation: int) -
                 continue
             parts = [m.group(1)] if m.group(1).strip() else []
             j = i + 1
+            if parts and re.search(r"\S@\s?\S", parts[0]):
+                j = len(lines)  # a UPI id is a complete value: the next lines belong to other rows
             while j < len(lines) and len(parts) < continuation + 1:
                 nxt = lines[j]
                 if nxt.strip():
@@ -205,6 +207,37 @@ def _labelled(lines: list[str], labels: tuple[str, ...], *, continuation: int) -
             value = _tidy(" ".join(parts))
             if value:
                 return value[:300]
+    return None
+
+
+_NOT_REMARKS = re.compile(
+    r"\b(?:pdf|powered|back\s+to\s+home|another\s+payment|corporate|download|share|split|tag)\b",
+    re.I,
+)
+
+
+def _plain_text_line(line: str) -> bool:
+    """A line of ordinary words (not icon junk such as '“) pif ¥& <' or an advert)."""
+    if _NOT_REMARKS.search(line) or not re.search(r"[A-Za-z]{3,}", line):
+        return False
+    ordinary = sum(c.isalnum() or c in " .,'&/-" for c in line)
+    return ordinary >= 0.9 * len(line)
+
+
+def _remarks_below(lines: list[str], payment_from: str) -> str | None:
+    """Some receipts print the Remarks label in pale grey that the reader loses; the remark itself
+    is then the plain text right under the 'Payment from' value."""
+    key = payment_from.replace(" ", "").lower()
+    for i, line in enumerate(lines):
+        if key and key in line.replace(" ", "").lower():
+            out: list[str] = []
+            for nxt in lines[i + 1 :]:
+                if not nxt.strip():
+                    continue
+                if not _plain_text_line(nxt) or len(out) == 3:
+                    break
+                out.append(nxt.strip())
+            return " ".join(out) or None
     return None
 
 
@@ -228,11 +261,19 @@ def parse_receipt(text: str) -> ParsedReceipt:
     remarks = _labelled(lines, (_REMARKS,), continuation=0)
     if remarks and re.fullmatch(r"no\s+remarks?", remarks, re.I):
         remarks = None
+    payment_from = _labelled(lines, _FROM_LABELS, continuation=2)
+    has_label = any(re.match(rf"{_NOISE}{_REMARKS}\b", ln, re.I) for ln in lines)
+    if remarks is None and not has_label and payment_from and "@" in payment_from:
+        # the second reading usually has the label-free, cleaner lines
+        for source in (second, main):
+            alt_lines = source.replace("\r", "\n").split("\n")
+            if remarks := _remarks_below(alt_lines, payment_from):
+                break
     return ParsedReceipt(
         transaction_id=_transaction_id(both),
         txn_date=_txn_date(both),
         payment_to=_labelled(lines, _TO_LABELS, continuation=2),
-        payment_from=_labelled(lines, _FROM_LABELS, continuation=2),
+        payment_from=payment_from,
         remarks=remarks[:500] if remarks else None,
         amount=_reconciled_amount(both, second),
     )
