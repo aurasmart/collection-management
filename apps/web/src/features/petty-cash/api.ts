@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { components } from '@collections/api-types'
+import type { components, paths } from '@collections/api-types'
 import { api, fieldErrors, type ApiFieldError } from '@/lib/api'
 import { fileForm } from '@/lib/receipt'
 import { useAuth } from '@/features/auth/AuthProvider'
@@ -10,15 +10,48 @@ export type PettyCashProposal = components['schemas']['PettyCashProposal']
 
 export const PAGE_SIZE = 50
 
-export function usePettyCash(q: string, page: number) {
+export type Sort = NonNullable<
+  NonNullable<paths['/api/v1/petty-cash']['get']['parameters']['query']>['sort']
+>
+
+export type PettyFilters = {
+  q: string
+  dateFrom: string
+  dateTo: string
+  minAmount: string
+  maxAmount: string
+  sort: Sort
+}
+
+export const NO_FILTERS: PettyFilters = {
+  q: '',
+  dateFrom: '',
+  dateTo: '',
+  minAmount: '',
+  maxAmount: '',
+  sort: 'date_desc',
+}
+
+function queryOf(f: PettyFilters) {
+  return {
+    q: f.q || undefined,
+    date_from: f.dateFrom || undefined,
+    date_to: f.dateTo || undefined,
+    min_amount: f.minAmount || undefined,
+    max_amount: f.maxAmount || undefined,
+    sort: f.sort,
+  }
+}
+
+export function usePettyCash(f: PettyFilters, page: number) {
   const { status } = useAuth()
   return useQuery({
-    queryKey: ['petty-cash', q, page],
+    queryKey: ['petty-cash', f, page],
     enabled: status === 'signed-in',
     placeholderData: (prev) => prev,
     queryFn: async () => {
       const { data, error } = await api.GET('/api/v1/petty-cash', {
-        params: { query: { q: q || undefined, limit: PAGE_SIZE, offset: page * PAGE_SIZE } },
+        params: { query: { ...queryOf(f), limit: PAGE_SIZE, offset: page * PAGE_SIZE } },
       })
       if (error || !data) throw new Error('Could not load petty cash')
       return data
@@ -100,6 +133,19 @@ export function useUpdateEntry(id: string) {
   }
 }
 
+/** Delete several entries (and their receipt files) at once. */
+export function useDeleteEntries() {
+  const refresh = useRefresh()
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      const { data } = await api.POST('/api/v1/petty-cash/delete', { body: { ids } })
+      if (!data) throw new Error('Delete failed')
+      return data.deleted
+    },
+    onSuccess: refresh,
+  })
+}
+
 export function useDeleteEntry() {
   const refresh = useRefresh()
   return useMutation({
@@ -122,9 +168,9 @@ export async function fetchEntryReceipt(id: string): Promise<Blob | undefined> {
 }
 
 /** The list (with the current search) as an Excel sheet. */
-export async function exportEntries(q: string): Promise<Blob | undefined> {
+export async function exportEntries(f: PettyFilters): Promise<Blob | undefined> {
   const { data } = await api.GET('/api/v1/petty-cash/export', {
-    params: { query: { q: q || undefined } },
+    params: { query: queryOf(f) },
     parseAs: 'blob',
   })
   return data

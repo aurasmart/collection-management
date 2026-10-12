@@ -341,3 +341,88 @@ def test_a_phone_screen_on_a_black_desktop_is_cropped_and_a_stray_dot_is_ignored
     assert cropped.width < 650 and cropped.height > 1150
     plain = Image.new("L", (800, 1200), 255)  # nothing to crop on an ordinary page
     assert _crop_to_content(plain).size == (800, 1200)
+
+
+def three_entries(client: TestClient, t: Tenant) -> None:
+    for tid, day, to, amount in (
+        ("A1", "2026-10-01", "Zed Traders", "500"),
+        ("B2", "2026-10-05", "amit stores", "1500.50"),
+        ("C3", "2026-10-09", "Bharat Porter", "250"),
+    ):
+        fields = {**FIELDS, "transaction_id": tid, "txn_date": day, "payment_to": to}
+        assert save(client, t, {**fields, "amount": amount}).status_code == 201
+
+
+def ids(client: TestClient, t: Tenant, **params: Any) -> list[str]:
+    r = client.get("/api/v1/petty-cash", params=params, headers=bearer(t.auth_user_id))
+    assert r.status_code == 200, r.text
+    return [i["transaction_id"] for i in r.json()["items"]]
+
+
+def test_petty_cash_sorts_and_filters_by_amount(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    t = make_employer("a")
+    three_entries(client, t)
+    assert ids(client, t) == ["C3", "B2", "A1"]  # newest date first by default
+    assert ids(client, t, sort="date_asc") == ["A1", "B2", "C3"]
+    assert ids(client, t, sort="amount_desc") == ["B2", "A1", "C3"]
+    assert ids(client, t, sort="amount_asc") == ["C3", "A1", "B2"]
+    assert ids(client, t, sort="to_asc") == ["B2", "C3", "A1"]  # amit, Bharat, Zed (any case)
+    assert ids(client, t, sort="to_desc") == ["A1", "C3", "B2"]
+    assert ids(client, t, sort="added_asc") == ["A1", "B2", "C3"]
+    assert ids(client, t, sort="added_desc") == ["C3", "B2", "A1"]
+    assert ids(client, t, min_amount="300") == ["B2", "A1"]
+    assert ids(client, t, max_amount="500") == ["C3", "A1"]
+    assert ids(client, t, min_amount="300", max_amount="600") == ["A1"]
+    assert ids(client, t, date_from="2026-10-02", date_to="2026-10-06") == ["B2"]
+    r = client.get(
+        "/api/v1/petty-cash", params={"min_amount": "300"}, headers=bearer(t.auth_user_id)
+    ).json()
+    assert r["total"] == 2 and r["total_amount"] == "2000.50"  # the total follows the filter
+    bad = client.get(
+        "/api/v1/petty-cash", params={"sort": "x; DROP TABLE y"}, headers=bearer(t.auth_user_id)
+    )
+    assert bad.status_code == 422
+
+
+def test_export_follows_the_sort_and_filters(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    t = make_employer("a")
+    three_entries(client, t)
+    rows = sheet(export(client, t, sort="amount_asc", min_amount="300"))
+    assert [r[1] for r in rows[1:-1]] == ["A1", "B2"] and rows[-1][5] == 2000.5
+
+
+def test_delete_several_entries_and_their_files(
+    client: TestClient, make_employer: MakeEmployer, storage_dir: Path
+) -> None:
+    a, b = make_employer("a"), make_employer("b")
+    three_entries(client, a)
+    foreign = save(client, b, FIELDS).json()["id"]
+    h = bearer(a.auth_user_id)
+    items = client.get("/api/v1/petty-cash", headers=h).json()["items"]
+    chosen = [items[0]["id"], items[1]["id"], foreign]  # one of them belongs to another employer
+    r = client.post("/api/v1/petty-cash/delete", json={"ids": chosen}, headers=h)
+    assert r.status_code == 200 and r.json() == {"deleted": 2}
+    assert ids(client, a) == [items[2]["transaction_id"]]
+    assert len(receipt_objects(storage_dir, a)) == 1  # the files went with the entries
+    assert (
+        client.get(f"/api/v1/petty-cash/{foreign}", headers=bearer(b.auth_user_id)).status_code
+        == 200
+    )
+    assert len(receipt_objects(storage_dir, b)) == 1  # the other employer's entry is untouched
+
+
+def test_bulk_delete_validates_and_needs_sign_in(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    t = make_employer("a")
+    h = bearer(t.auth_user_id)
+    assert client.post("/api/v1/petty-cash/delete", json={"ids": []}, headers=h).status_code == 422
+    assert (
+        client.post("/api/v1/petty-cash/delete", json={"ids": ["nope"]}, headers=h).status_code
+        == 422
+    )
+    assert client.post("/api/v1/petty-cash/delete", json={"ids": []}).status_code in (401, 403)

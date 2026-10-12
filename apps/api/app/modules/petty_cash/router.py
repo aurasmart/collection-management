@@ -10,10 +10,10 @@ import logging
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, UploadFile, status
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -202,8 +202,35 @@ def create_entry(
         raise
 
 
+Sort = Literal[
+    "date_desc",
+    "date_asc",
+    "amount_desc",
+    "amount_asc",
+    "to_asc",
+    "to_desc",
+    "added_desc",
+    "added_asc",
+]
+# Whitelist: the `sort` query value only ever selects one of these constant fragments.
+_ORDER = {
+    "date_desc": "txn_date DESC NULLS LAST, created_at DESC",
+    "date_asc": "txn_date ASC NULLS LAST, created_at ASC",
+    "amount_desc": "amount DESC, created_at DESC",
+    "amount_asc": "amount ASC, created_at DESC",
+    "to_asc": "lower(payment_to) ASC NULLS LAST, created_at DESC",
+    "to_desc": "lower(payment_to) DESC NULLS LAST, created_at DESC",
+    "added_desc": "created_at DESC",
+    "added_asc": "created_at ASC",
+}
+
+
 def _filters(
-    q: str | None, date_from: date | None, date_to: date | None
+    q: str | None,
+    date_from: date | None,
+    date_to: date | None,
+    min_amount: Decimal | None = None,
+    max_amount: Decimal | None = None,
 ) -> tuple[str, dict[str, Any]]:
     where = ["TRUE"]
     params: dict[str, Any] = {}
@@ -220,10 +247,13 @@ def _filters(
     if date_to:
         where.append("txn_date <= :date_to")
         params["date_to"] = date_to
+    if min_amount is not None:
+        where.append("amount >= :min_amount")
+        params["min_amount"] = min_amount
+    if max_amount is not None:
+        where.append("amount <= :max_amount")
+        params["max_amount"] = max_amount
     return " AND ".join(where), params  # only constant fragments; values are bound parameters
-
-
-_ORDER = "ORDER BY txn_date DESC NULLS LAST, created_at DESC, id"
 
 
 @router.get("", operation_id="listPettyCash", summary="Saved petty-cash entries")
@@ -232,10 +262,13 @@ def list_entries(
     q: Annotated[str | None, Query(max_length=100)] = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    min_amount: Annotated[Decimal | None, Query(ge=0, le=Decimal("99999999999.99"))] = None,
+    max_amount: Annotated[Decimal | None, Query(ge=0, le=Decimal("99999999999.99"))] = None,
+    sort: Sort = "date_desc",
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> PettyCashList:
-    clause, params = _filters(q, date_from, date_to)
+    clause, params = _filters(q, date_from, date_to, min_amount, max_amount)
     params |= {"limit": limit, "offset": offset}
     with tenant_session(ctx.employer_id) as db:
         agg = db.execute(
@@ -248,7 +281,7 @@ def list_entries(
         rows = db.execute(
             text(
                 f"SELECT {_COLUMNS} FROM petty_cash_entries WHERE {clause} "
-                f"{_ORDER} LIMIT :limit OFFSET :offset"
+                f"ORDER BY {_ORDER[sort]}, id LIMIT :limit OFFSET :offset"
             ),
             params,
         ).all()
@@ -274,13 +307,16 @@ def export_entries(
     q: Annotated[str | None, Query(max_length=100)] = None,
     date_from: date | None = None,
     date_to: date | None = None,
+    min_amount: Annotated[Decimal | None, Query(ge=0, le=Decimal("99999999999.99"))] = None,
+    max_amount: Annotated[Decimal | None, Query(ge=0, le=Decimal("99999999999.99"))] = None,
+    sort: Sort = "date_desc",
 ) -> Response:
-    clause, params = _filters(q, date_from, date_to)
+    clause, params = _filters(q, date_from, date_to, min_amount, max_amount)
     with tenant_session(ctx.employer_id) as db:
         rows = db.execute(
             text(
                 f"SELECT {_COLUMNS} FROM petty_cash_entries WHERE {clause} "
-                f"{_ORDER} LIMIT {EXPORT_MAX_ROWS}"
+                f"ORDER BY {_ORDER[sort]}, id LIMIT {EXPORT_MAX_ROWS}"
             ),
             params,
         ).all()
@@ -293,6 +329,39 @@ def export_entries(
             "Cache-Control": "private, no-store",
         },
     )
+
+
+class DeleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+
+
+class DeleteResult(BaseModel):
+    deleted: int
+
+
+@router.post(
+    "/delete",
+    operation_id="deletePettyCashEntries",
+    summary="Delete several entries and their receipts at once",
+)
+def delete_entries(
+    body: DeleteRequest, user: User, ctx: Ctx, storage: Storage, app_settings: AppSettings
+) -> DeleteResult:
+    keys: list[str] = []
+    with tenant_session(ctx.employer_id) as db:
+        for entry_id in dict.fromkeys(body.ids):  # another employer's id simply isn't found (RLS)
+            key = db.execute(
+                text("DELETE FROM petty_cash_entries WHERE id = :id RETURNING storage_key"),
+                {"id": entry_id},
+            ).scalar_one_or_none()
+            if key is None:
+                continue
+            _audit(db, ctx, user, entry_id, "petty_cash_deleted")
+            keys.append(key)
+    for key in keys:
+        _best_effort_delete(storage, app_settings.receipts_bucket, key)
+    return DeleteResult(deleted=len(keys))
 
 
 @router.get("/{entry_id}", operation_id="getPettyCashEntry", summary="One entry")

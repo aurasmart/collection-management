@@ -285,6 +285,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/petty-cash/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Delete several entries and their receipts at once */
+        post: operations["deletePettyCashEntries"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/petty-cash/export": {
         parameters: {
             query?: never;
@@ -1888,6 +1905,9 @@ export interface operations {
                 q?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
+                min_amount?: number | string | null;
+                max_amount?: number | string | null;
+                sort?: "date_desc" | "date_asc" | "amount_desc" | "amount_asc" | "to_asc" | "to_desc" | "added_desc" | "added_asc";
                 limit?: number;
                 offset?: number;
             };
@@ -1950,12 +1970,48 @@ export interface operations {
             };
         };
     };
+    deletePettyCashEntries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeleteResult"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     exportPettyCash: {
         parameters: {
             query?: {
                 q?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
+                min_amount?: number | string | null;
+                max_amount?: number | string | null;
+                sort?: "date_desc" | "date_asc" | "amount_desc" | "amount_asc" | "to_asc" | "to_desc" | "added_desc" | "added_asc";
             };
             header?: never;
             path?: never;

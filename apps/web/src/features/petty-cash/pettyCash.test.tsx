@@ -242,4 +242,79 @@ describe('Petty Cash', () => {
     expect(api.called('GET /api/v1/petty-cash/export')[0]!.request.url).toContain('q=optima')
     await waitFor(() => expect(created).toHaveBeenCalled())
   })
+
+  it('sorts and filters by date and amount through the server', async () => {
+    const api = open({
+      'GET /api/v1/petty-cash': () =>
+        json({ items: [entry()], total: 1, total_amount: '162840.00' }),
+    })
+    await userEvent.selectOptions(await screen.findByLabelText('Sort by'), 'amount_desc')
+    await waitFor(() =>
+      expect(api.called('GET /api/v1/petty-cash').at(-1)!.request.url).toContain(
+        'sort=amount_desc',
+      ),
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filters' }))
+    await userEvent.type(screen.getByLabelText('Amount from (₹)'), '500')
+    await userEvent.type(screen.getByLabelText('Date from'), '2026-10-01')
+    await userEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
+    await waitFor(() => {
+      const url = api.called('GET /api/v1/petty-cash').at(-1)!.request.url
+      expect(url).toContain('min_amount=500')
+      expect(url).toContain('date_from=2026-10-01')
+      expect(url).toContain('sort=amount_desc')
+    })
+    expect(screen.getByRole('button', { name: 'Filters (2)' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Filters (2)' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    await waitFor(() =>
+      expect(api.called('GET /api/v1/petty-cash').at(-1)!.request.url).not.toContain('min_amount'),
+    )
+  })
+
+  it('selects several entries and deletes them together', async () => {
+    let items = [
+      entry({ id: 'p1', transaction_id: 'T1' }),
+      entry({ id: 'p2', transaction_id: 'T2' }),
+      entry({ id: 'p3', transaction_id: 'T3' }),
+    ]
+    const api = open({
+      'GET /api/v1/petty-cash': () => json({ items, total: items.length, total_amount: '0.00' }),
+      'POST /api/v1/petty-cash/delete': () => {
+        items = items.filter((e) => e.id === 'p3')
+        return json({ deleted: 2 })
+      },
+    })
+    await userEvent.click(await screen.findByLabelText('Select T1'))
+    await userEvent.click(screen.getByLabelText('Select T2'))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Delete selected' }))
+    await userEvent.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete 2 entries' }),
+    )
+    await waitFor(() => expect(api.called('POST /api/v1/petty-cash/delete')).toHaveLength(1))
+    expect(api.called('POST /api/v1/petty-cash/delete')[0]!.body).toEqual({ ids: ['p1', 'p2'] })
+    expect(await screen.findByText('2 entries deleted')).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByLabelText('Select T1')).not.toBeInTheDocument())
+  })
+
+  it('selects every entry on the page at once', async () => {
+    open({
+      'GET /api/v1/petty-cash': () =>
+        json({
+          items: [
+            entry({ id: 'p1', transaction_id: 'T1' }),
+            entry({ id: 'p2', transaction_id: 'T2' }),
+          ],
+          total: 2,
+          total_amount: '0.00',
+        }),
+    })
+    await userEvent.click(await screen.findByLabelText('Select all on this page'))
+    expect(screen.getByText('2 selected')).toBeInTheDocument()
+    await userEvent.click(screen.getByLabelText('Select all on this page'))
+    expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
+  })
 })
