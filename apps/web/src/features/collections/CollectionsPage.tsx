@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { ArrowUpDown, Pencil, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
+import { ArrowUpDown, Pencil, Plus, Search, SlidersHorizontal, Trash2, X } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router'
 import { Alert, Button, Card, EmptyState, Skeleton } from '@/components/ui'
+import { EditDialog } from '@/features/collections/EditDialog'
 import { DeleteDialog } from '@/features/collections/DeleteDialog'
 import { MarkDialog } from '@/features/collections/MarkDialog'
 import { StatusPill } from '@/features/collections/StatusPill'
@@ -92,6 +93,7 @@ export function CollectionsPage() {
       ? (params.get('status') as StatusFilter)
       : 'ALL',
   }))
+  const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [panelOpen, setPanelOpen] = useState(false)
@@ -138,13 +140,20 @@ export function CollectionsPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Collections</h1>
-        <Link
-          to={routes.upload}
-          className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-medium text-white hover:bg-accent-hover"
-        >
-          Import customers
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" onClick={() => setAdding(true)}>
+            <Plus aria-hidden className="size-4" />
+            Add customer
+          </Button>
+          <Link
+            to={routes.upload}
+            className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-medium text-white hover:bg-accent-hover"
+          >
+            Import customers
+          </Link>
+        </div>
       </div>
+      <EditDialog open={adding} onOpenChange={setAdding} />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-60 flex-1">
@@ -388,14 +397,20 @@ export function CollectionsPage() {
           ) : (
             <EmptyState
               title="No collections yet"
-              description="Upload an Excel or CSV file to add your customers."
+              description="Add a customer by hand, or upload an Excel or CSV file."
               action={
-                <Link
-                  to={routes.upload}
-                  className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-medium text-white"
-                >
-                  Import customers
-                </Link>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button variant="secondary" onClick={() => setAdding(true)}>
+                    <Plus aria-hidden className="size-4" />
+                    Add customer
+                  </Button>
+                  <Link
+                    to={routes.upload}
+                    className="inline-flex min-h-11 items-center rounded-control bg-accent px-4 font-medium text-white"
+                  >
+                    Import customers
+                  </Link>
+                </div>
               }
             />
           )}

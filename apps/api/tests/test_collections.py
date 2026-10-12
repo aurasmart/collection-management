@@ -459,3 +459,39 @@ def test_dashboard_insights_overdue_due_soon_and_top_outstanding(
     client.post(f"/api/v1/collections/{first_id(client, t, 'Zed')}/mark-paid", headers=h)
     d = client.get("/api/v1/dashboard", headers=h).json()
     assert d["overdue_customers"] == 0 and d["paid_customers"] == 1
+
+
+def test_add_one_customer_by_hand(client: TestClient, make_employer: MakeEmployer) -> None:
+    t = make_employer("add-one")
+    other = make_employer("add-other")
+    r = client.post(
+        "/api/v1/collections",
+        json={
+            "customer_name": "Meena Traders",
+            "phone": "9876543212",
+            "amount_due": "1,200",
+            "reference": "INV-9",
+            "due_date": "20/10/2026",
+        },
+        headers=bearer(t.auth_user_id),
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["customer_name"] == "Meena Traders"
+    assert body["amount_due"] == "1200.00"
+    assert body["status"] == "PENDING"
+    assert listing(client, t)["total"] == 1
+    assert listing(client, other)["total"] == 0
+
+
+def test_add_one_customer_validates(client: TestClient, make_employer: MakeEmployer) -> None:
+    t = make_employer("add-bad")
+    r = client.post(
+        "/api/v1/collections",
+        json={"customer_name": "", "phone": "123", "amount_due": "abc"},
+        headers=bearer(t.auth_user_id),
+    )
+    assert r.status_code == 422
+    fields = {e["loc"][-1] for e in r.json()["detail"]}
+    assert {"customer_name", "amount_due"} <= fields
+    assert listing(client, t)["total"] == 0

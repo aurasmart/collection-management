@@ -192,31 +192,49 @@ export function useCollectionAction(id: string, action: Action) {
 export type EditResult =
   { ok: true; data: CollectionDetail } | { ok: false; errors: ApiFieldError[]; message: string }
 
+type Saved = { data?: CollectionDetail; error?: unknown; response: Response }
+
+async function toResult(
+  call: () => Promise<Saved>,
+  refresh: (d: CollectionDetail) => void,
+): Promise<EditResult> {
+  try {
+    const { data, error, response } = await call()
+    if (data) {
+      refresh(data)
+      return { ok: true, data }
+    }
+    const detail = (error as { detail?: unknown } | undefined)?.detail
+    return {
+      ok: false,
+      errors: fieldErrors(error),
+      message:
+        typeof detail === 'string'
+          ? detail
+          : response.status === 422
+            ? ''
+            : "Couldn't save. Try again.",
+    }
+  } catch {
+    return { ok: false, errors: [], message: "Can't reach the server. Check your connection." }
+  }
+}
+
 export function useEditCollection(id: string) {
   const refresh = useRefreshAll()
-  return async (body: CollectionEdit): Promise<EditResult> => {
-    try {
-      const { data, error, response } = await api.PUT('/api/v1/collections/{collection_id}', {
-        params: { path: { collection_id: id } },
-        body,
-      })
-      if (data) {
-        refresh(data)
-        return { ok: true, data }
-      }
-      const detail = (error as { detail?: unknown } | undefined)?.detail
-      return {
-        ok: false,
-        errors: fieldErrors(error),
-        message:
-          typeof detail === 'string'
-            ? detail
-            : response.status === 422
-              ? ''
-              : "Couldn't save. Try again.",
-      }
-    } catch {
-      return { ok: false, errors: [], message: "Can't reach the server. Check your connection." }
-    }
-  }
+  return (body: CollectionEdit): Promise<EditResult> =>
+    toResult(
+      () =>
+        api.PUT('/api/v1/collections/{collection_id}', {
+          params: { path: { collection_id: id } },
+          body,
+        }),
+      refresh,
+    )
+}
+
+export function useCreateCollection() {
+  const refresh = useRefreshAll()
+  return (body: CollectionEdit): Promise<EditResult> =>
+    toResult(() => api.POST('/api/v1/collections', { body }), refresh)
 }

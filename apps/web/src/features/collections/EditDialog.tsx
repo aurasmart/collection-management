@@ -1,6 +1,10 @@
 import { useState } from 'react'
 import { Alert, Button, Modal, TextField, useToast } from '@/components/ui'
-import { useEditCollection, type CollectionDetail } from '@/features/collections/api'
+import {
+  useCreateCollection,
+  useEditCollection,
+  type CollectionDetail,
+} from '@/features/collections/api'
 
 const iso = (d: string | null) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d ?? '')
@@ -9,13 +13,13 @@ const iso = (d: string | null) => {
 
 type Fields = 'customer_name' | 'phone' | 'amount_due' | 'reference' | 'due_date'
 
-/** Edit one customer. The server does the real validation; its messages are shown under the fields. */
+/** Edit one customer, or add a new one when `customer` is omitted. The server does the real validation; its messages are shown under the fields. */
 export function EditDialog({
   customer,
   open,
   onOpenChange,
 }: {
-  customer: CollectionDetail
+  customer?: CollectionDetail
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
@@ -26,17 +30,20 @@ function EditForm({
   customer,
   onOpenChange,
 }: {
-  customer: CollectionDetail
+  customer?: CollectionDetail
   onOpenChange: (open: boolean) => void
 }) {
-  const edit = useEditCollection(customer.id)
+  const adding = !customer
+  const editExisting = useEditCollection(customer?.id ?? '')
+  const create = useCreateCollection()
+  const edit = adding ? create : editExisting
   const { toast } = useToast()
   const [values, setValues] = useState<Record<Fields, string>>({
-    customer_name: customer.customer_name,
-    phone: customer.phone ?? '',
-    amount_due: customer.amount_due,
-    reference: customer.reference ?? '',
-    due_date: iso(customer.due_date),
+    customer_name: customer?.customer_name ?? '',
+    phone: customer?.phone ?? '',
+    amount_due: customer?.amount_due ?? '',
+    reference: customer?.reference ?? '',
+    due_date: iso(customer?.due_date ?? null),
   })
   const [errors, setErrors] = useState<Partial<Record<Fields, string>>>({})
   const [message, setMessage] = useState('')
@@ -65,7 +72,7 @@ function EditForm({
     setSaving(false)
     if (result.ok) {
       onOpenChange(false)
-      toast({ title: 'Customer saved', tone: 'success' })
+      toast({ title: adding ? 'Customer added' : 'Customer saved', tone: 'success' })
       return
     }
     const next: Partial<Record<Fields, string>> = {}
@@ -78,15 +85,19 @@ function EditForm({
     <Modal
       open
       onOpenChange={onOpenChange}
-      title="Edit customer"
-      description="Change the details below. The payment page link stays the same and shows the new details."
+      title={adding ? 'Add customer' : 'Edit customer'}
+      description={
+        adding
+          ? 'Enter the details below. You can then create their payment page.'
+          : 'Change the details below. The payment page link stays the same and shows the new details.'
+      }
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button type="submit" form="edit-customer-form" loading={saving}>
-            Save changes
+            {adding ? 'Add customer' : 'Save changes'}
           </Button>
         </>
       }

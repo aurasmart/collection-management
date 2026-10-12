@@ -35,7 +35,8 @@ export interface paths {
         /** Customers and what they owe */
         get: operations["listCollections"];
         put?: never;
-        post?: never;
+        /** Add one customer by hand */
+        post: operations["createCollection"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1371,6 +1372,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CollectionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    createCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CollectionEdit"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionDetail"];
                 };
             };
             /** @description Validation Error */

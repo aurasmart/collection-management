@@ -336,6 +336,54 @@ def delete_collection(
     _delete_objects(storage, app_settings, keys)
 
 
+@router.post(
+    "",
+    operation_id="createCollection",
+    summary="Add one customer by hand",
+    status_code=status.HTTP_201_CREATED,
+)
+def create_collection(body: CollectionEdit, user: User, ctx: Ctx) -> CollectionDetail:
+    result = validate_row(body.model_dump())
+    if result.errors:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=[
+                {"loc": ["body", f], "msg": m, "type": "value_error"} for f, m in result.errors
+            ],
+        )
+    customer_id, collection_id = uuid.uuid4(), uuid.uuid4()
+    with tenant_session(ctx.employer_id) as db:
+        db.execute(
+            text(
+                "INSERT INTO customers (id, employer_id, name, phone) "
+                "VALUES (:id, :e, :name, :phone)"
+            ),
+            {
+                "id": customer_id,
+                "e": ctx.employer_id,
+                "name": result.customer_name,
+                "phone": result.phone,
+            },
+        )
+        db.execute(
+            text(
+                "INSERT INTO collections "
+                "(id, employer_id, customer_id, amount_due, due_date, reference) "
+                "VALUES (:id, :e, :c, :amount, CAST(:due AS date), :ref)"
+            ),
+            {
+                "id": collection_id,
+                "e": ctx.employer_id,
+                "c": customer_id,
+                "amount": result.amount_due,
+                "due": result.due_date,
+                "ref": result.reference,
+            },
+        )
+        _audit(db, ctx, user, collection_id, "collection_created", {"source": "manual"})
+        return _detail(_load(db, collection_id))
+
+
 @router.get("/{collection_id}", operation_id="getCollection", summary="One customer")
 def get_collection(collection_id: uuid.UUID, ctx: Ctx) -> CollectionDetail:
     with tenant_session(ctx.employer_id) as db:

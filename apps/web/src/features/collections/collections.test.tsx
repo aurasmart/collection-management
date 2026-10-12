@@ -129,6 +129,7 @@ describe('Collections list', () => {
     open('/collections', { 'GET /api/v1/collections': () => list([]) })
     expect(await screen.findByText('No collections yet')).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Import customers' }).length).toBe(2)
+    expect(screen.getAllByRole('button', { name: 'Add customer' }).length).toBe(2)
   })
 
   it('has an error state with Retry', async () => {
@@ -587,5 +588,48 @@ describe('Collections sort, filters and delete', () => {
     )
     expect(await screen.findByText('Rahul Sharma deleted')).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Collections' })).toBeInTheDocument()
+  })
+})
+
+describe('Add customer', () => {
+  it('adds one customer by hand next to the Import option', async () => {
+    const user = userEvent.setup()
+    const api = open('/collections', {
+      'GET /api/v1/collections': () => list([item()]),
+      'POST /api/v1/collections': () => json(detail({ customer_name: 'Meena' }), 201),
+    })
+    await screen.findByText('Rahul Sharma')
+    expect(screen.getByRole('link', { name: 'Import customers' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Add customer' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText(/Customer name/), 'Meena')
+    await user.type(within(dialog).getByLabelText(/Amount due/), '1200')
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }))
+    await waitFor(() => expect(api.called('POST /api/v1/collections')).toHaveLength(1))
+    const sent = (await api.called('POST /api/v1/collections')[0]!.request.clone().json()) as {
+      customer_name: string
+      amount_due: string
+    }
+    expect(sent).toMatchObject({ customer_name: 'Meena', amount_due: '1200' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+  })
+
+  it('shows the server field errors under the fields', async () => {
+    const user = userEvent.setup()
+    open('/collections', {
+      'GET /api/v1/collections': () => list([item()]),
+      'POST /api/v1/collections': () =>
+        json(
+          { detail: [{ loc: ['body', 'amount_due'], msg: 'Enter a valid amount', type: 'x' }] },
+          422,
+        ),
+    })
+    await screen.findByText('Rahul Sharma')
+    await user.click(screen.getByRole('button', { name: 'Add customer' }))
+    const dialog = await screen.findByRole('dialog')
+    await user.type(within(dialog).getByLabelText(/Customer name/), 'Meena')
+    await user.type(within(dialog).getByLabelText(/Amount due/), 'abc')
+    await user.click(within(dialog).getByRole('button', { name: 'Add customer' }))
+    expect(await within(dialog).findByText('Enter a valid amount')).toBeInTheDocument()
   })
 })

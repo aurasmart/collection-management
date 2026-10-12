@@ -40,3 +40,7 @@ Tables `payment_requests`, `payments`, `import_batches`, `import_rows`, `notific
 - Rate limiting is per API process (fine for one instance).
 - No duplicate-upload warning: uploading the same file twice creates the customers twice.
 - Mark as Unpaid is a simple status correction; there is no record of who paid what or when beyond audit events.
+
+## Addendum: add one customer by hand
+
+Collections also offers **Add customer** (`POST /api/v1/collections`) beside **Import customers**. It uses the same row validation as import and edit, creates the customer and collection in one tenant transaction, and needs no schema change.
