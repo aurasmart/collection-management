@@ -273,3 +273,57 @@ def test_petty_cash_is_private_to_its_employer(
     assert client.get(f"/api/v1/petty-cash/{eid}/receipt", headers=hb).status_code == 404
     assert client.put(f"/api/v1/petty-cash/{eid}", json=FIELDS, headers=hb).status_code == 404
     assert client.delete(f"/api/v1/petty-cash/{eid}", headers=hb).status_code == 404
+
+
+def export(client: TestClient, t: Tenant, **params: Any) -> Any:
+    return client.get("/api/v1/petty-cash/export", params=params, headers=bearer(t.auth_user_id))
+
+
+def sheet(response: Any) -> list[list[Any]]:
+    from openpyxl import load_workbook
+
+    ws = load_workbook(io.BytesIO(response.content)).active
+    assert ws is not None
+    return [list(r) for r in ws.iter_rows(values_only=True)]
+
+
+def test_export_is_an_excel_sheet_of_the_list_with_a_total(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    t = make_employer("a")
+    assert save(client, t, FIELDS).status_code == 201
+    other = {**FIELDS, "transaction_id": "T2", "txn_date": "2026-10-07", "amount": "1020"}
+    assert (
+        save(client, t, {**other, "payment_to": "SIMA BAI", "remarks": "=1+1"}).status_code == 201
+    )
+
+    r = export(client, t)
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("application/vnd.openxmlformats")
+    assert "petty-cash-" in r.headers["content-disposition"]
+    rows = sheet(r)
+    assert rows[0] == [
+        "Date",
+        "Transaction ID",
+        "Payment to",
+        "Payment from",
+        "Remarks",
+        "Amount (₹)",
+    ]
+    assert [row[1] for row in rows[1:3]] == ["T2", "2559007396"]  # newest first
+    assert rows[1][5] == 1020 and rows[2][5] == 162840
+    assert rows[1][4] == "'=1+1"  # never a live formula
+    assert rows[3][4] == "Total" and rows[3][5] == 163860
+
+    narrowed = sheet(export(client, t, q="SIMA"))
+    assert [row[2] for row in narrowed[1:-1]] == ["SIMA BAI"] and narrowed[-1][5] == 1020
+    assert len(sheet(export(client, t, date_from="2026-10-07"))) == 3  # header + 1 + total
+
+
+def test_export_is_private_and_needs_sign_in(
+    client: TestClient, make_employer: MakeEmployer
+) -> None:
+    a, b = make_employer("a"), make_employer("b")
+    save(client, a, FIELDS)
+    assert len(sheet(export(client, b))) == 2  # just the header and a zero total
+    assert client.get("/api/v1/petty-cash/export").status_code in (401, 403)

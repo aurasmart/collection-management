@@ -9,6 +9,7 @@ import json
 import logging
 import uuid
 from datetime import date
+from decimal import Decimal
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, UploadFile, status
@@ -22,6 +23,7 @@ from app.core.security import AuthenticatedUser, require_user
 from app.core.tenancy import EmployerContext, get_employer_context
 from app.modules.imports.ocr import OcrError, OcrUnavailable
 from app.modules.petty_cash import files
+from app.modules.petty_cash.export import XLSX_TYPE, build_xlsx
 from app.modules.petty_cash.parser import parse_receipt
 from app.modules.petty_cash.schemas import (
     PettyCashEntry,
@@ -200,17 +202,11 @@ def create_entry(
         raise
 
 
-@router.get("", operation_id="listPettyCash", summary="Saved petty-cash entries")
-def list_entries(
-    ctx: Ctx,
-    q: Annotated[str | None, Query(max_length=100)] = None,
-    date_from: date | None = None,
-    date_to: date | None = None,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> PettyCashList:
+def _filters(
+    q: str | None, date_from: date | None, date_to: date | None
+) -> tuple[str, dict[str, Any]]:
     where = ["TRUE"]
-    params: dict[str, Any] = {"limit": limit, "offset": offset}
+    params: dict[str, Any] = {}
     if q and q.strip():
         escaped = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         where.append(
@@ -224,7 +220,23 @@ def list_entries(
     if date_to:
         where.append("txn_date <= :date_to")
         params["date_to"] = date_to
-    clause = " AND ".join(where)  # only constant fragments; values are bound parameters
+    return " AND ".join(where), params  # only constant fragments; values are bound parameters
+
+
+_ORDER = "ORDER BY txn_date DESC NULLS LAST, created_at DESC, id"
+
+
+@router.get("", operation_id="listPettyCash", summary="Saved petty-cash entries")
+def list_entries(
+    ctx: Ctx,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> PettyCashList:
+    clause, params = _filters(q, date_from, date_to)
+    params |= {"limit": limit, "offset": offset}
     with tenant_session(ctx.employer_id) as db:
         agg = db.execute(
             text(
@@ -236,7 +248,7 @@ def list_entries(
         rows = db.execute(
             text(
                 f"SELECT {_COLUMNS} FROM petty_cash_entries WHERE {clause} "
-                "ORDER BY txn_date DESC NULLS LAST, created_at DESC, id LIMIT :limit OFFSET :offset"
+                f"{_ORDER} LIMIT :limit OFFSET :offset"
             ),
             params,
         ).all()
@@ -244,6 +256,42 @@ def list_entries(
         items=[_entry(r) for r in rows],
         total=int(agg.n),
         total_amount=format(agg.total, "f"),
+    )
+
+
+EXPORT_MAX_ROWS = 10_000
+
+
+@router.get(
+    "/export",
+    operation_id="exportPettyCash",
+    summary="The list (with the same search and dates) as an Excel sheet",
+    response_class=Response,
+    responses={200: {"content": {XLSX_TYPE: {}}}},
+)
+def export_entries(
+    ctx: Ctx,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    date_from: date | None = None,
+    date_to: date | None = None,
+) -> Response:
+    clause, params = _filters(q, date_from, date_to)
+    with tenant_session(ctx.employer_id) as db:
+        rows = db.execute(
+            text(
+                f"SELECT {_COLUMNS} FROM petty_cash_entries WHERE {clause} "
+                f"{_ORDER} LIMIT {EXPORT_MAX_ROWS}"
+            ),
+            params,
+        ).all()
+    total = sum((r.amount for r in rows), Decimal(0))
+    return Response(
+        content=build_xlsx(rows, total),
+        media_type=XLSX_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="petty-cash-{date.today()}.xlsx"',
+            "Cache-Control": "private, no-store",
+        },
     )
 
 

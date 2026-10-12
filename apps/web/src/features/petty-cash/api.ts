@@ -37,7 +37,7 @@ function failure(error: unknown, status: number): { errors: ApiFieldError[]; mes
       errors.length || status === 422
         ? ''
         : status === 502
-          ? "Couldn't store the receipt file. Check that the private 'receipts' bucket exists in Supabase Storage."
+          ? "Couldn't store the receipt file. Check that the private receipts bucket exists in Supabase Storage and that RECEIPTS_BUCKET matches its name."
           : "Couldn't save. Please try again.",
   }
 }
@@ -116,6 +116,15 @@ export function useDeleteEntry() {
 export async function fetchEntryReceipt(id: string): Promise<Blob | undefined> {
   const { data } = await api.GET('/api/v1/petty-cash/{entry_id}/receipt', {
     params: { path: { entry_id: id } },
+    parseAs: 'blob',
+  })
+  return data
+}
+
+/** The list (with the current search) as an Excel sheet. */
+export async function exportEntries(q: string): Promise<Blob | undefined> {
+  const { data } = await api.GET('/api/v1/petty-cash/export', {
+    params: { query: { q: q || undefined } },
     parseAs: 'blob',
   })
   return data

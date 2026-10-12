@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, Pencil, Plus, Search, Trash2, Wallet } from 'lucide-react'
+import { Download, ExternalLink, Pencil, Plus, Search, Trash2, Wallet } from 'lucide-react'
 import {
   Alert,
   Button,
@@ -12,6 +12,7 @@ import {
 import { EntryDialog } from '@/features/petty-cash/EntryDialog'
 import {
   PAGE_SIZE,
+  exportEntries,
   fetchEntryReceipt,
   useDeleteEntry,
   usePettyCash,
@@ -19,7 +20,7 @@ import {
 } from '@/features/petty-cash/api'
 import { formatDate } from '@/lib/date'
 import { formatINR } from '@/lib/money'
-import { openReceipt } from '@/lib/receipt'
+import { openReceipt, saveFile } from '@/lib/receipt'
 
 export function PettyCashPage() {
   const { toast } = useToast()
@@ -27,6 +28,7 @@ export function PettyCashPage() {
   const [q, setQ] = useState('')
   const [page, setPage] = useState(0)
   const [adding, setAdding] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [editing, setEditing] = useState<PettyCashEntry | null>(null)
   const [deleting, setDeleting] = useState<PettyCashEntry | null>(null)
   const query = usePettyCash(q, page)
@@ -39,6 +41,19 @@ export function PettyCashPage() {
     }, 300)
     return () => clearTimeout(t)
   }, [search])
+
+  async function exportSheet() {
+    setExporting(true)
+    try {
+      const blob = await exportEntries(search.trim())
+      if (!blob) throw new Error('No file')
+      saveFile(blob, `petty-cash-${new Date().toISOString().slice(0, 10)}.xlsx`)
+    } catch {
+      toast({ title: "Couldn't export. Please try again.", tone: 'error' })
+    } finally {
+      setExporting(false)
+    }
+  }
 
   const data = query.data
   const total = data?.total ?? 0
@@ -71,6 +86,15 @@ export function PettyCashPage() {
           <p className="pb-3 font-medium tabular" aria-live="polite">
             Total {formatINR(data.total_amount)}
           </p>
+          <Button
+            variant="secondary"
+            onClick={exportSheet}
+            loading={exporting}
+            disabled={total === 0}
+          >
+            <Download className="size-5" aria-hidden="true" />
+            Export to Excel
+          </Button>
         </div>
       )}
 

@@ -26,3 +26,7 @@
 
 ## Out of scope (unchanged)
 Payment gateways, UPI APIs, automatic payment detection, partial payments, OCR/AI for anything else.
+
+## Update: several receipts, Excel export
+
+Petty Cash accepts up to 20 receipts at once; each is read separately and reviewed and saved one at a time (nothing is saved without review). `GET /api/v1/petty-cash/export` returns the list (same search/date filters) as an .xlsx; receipt text is written as plain text so a cell can never run as a formula.

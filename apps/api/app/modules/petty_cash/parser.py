@@ -21,6 +21,10 @@ _MONTHS = {
 _MONTH_RE = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
 
 
+# Separates the main reading of a receipt from an optional second reading (see files._image_text).
+ALT_MARK = "\n\f\n"
+
+
 @dataclass(frozen=True)
 class ParsedReceipt:
     transaction_id: str | None = None
@@ -170,8 +174,13 @@ _ANY_LABEL = "|".join([*_TO_LABELS, *_FROM_LABELS, _REMARKS, _OTHER_LABELS])
 _LABEL_LINE = re.compile(rf"{_NOISE}(?:{_ANY_LABEL})\b", re.I)
 
 
+# "Phonepe | 9826357346-2@ybl": the payee's app and UPI handle, printed under their name
+_HANDLE_LINE = re.compile(r"\||\S@\S|\S\s@\s?\S")
+
+
 def _tidy(value: str) -> str:
     value = re.sub(r"\s+", " ", value).strip(" \t:-–|·•")
+    value = re.sub(r"\s+@\s*", "@", value)  # UPI ids: "name @bank" -> "name@bank"
     value = re.sub(r"['’]s account$", "", value, flags=re.I)
     return value.strip()
 
@@ -189,7 +198,7 @@ def _labelled(lines: list[str], labels: tuple[str, ...], *, continuation: int) -
             while j < len(lines) and len(parts) < continuation + 1:
                 nxt = lines[j]
                 if nxt.strip():
-                    if _LABEL_LINE.match(nxt):
+                    if _LABEL_LINE.match(nxt) or _HANDLE_LINE.search(nxt):
                         break
                     parts.append(re.sub(r"^\W+", "", nxt))  # drop leading junk from icons
                 j += 1
@@ -199,17 +208,31 @@ def _labelled(lines: list[str], labels: tuple[str, ...], *, continuation: int) -
     return None
 
 
+def _reconciled_amount(both: str, second: str) -> str | None:
+    """The amount, trusting the second reading when the first only differs by one extra leading
+    digit (the rupee sign misread as a "7" or "2")."""
+    amount = _amount(both)
+    other = _amount(second) if second else None
+    if amount and other and amount != other:
+        whole, other_whole = amount.split(".")[0], other.split(".")[0]
+        if whole[1:] == other_whole and amount.split(".")[1] == other.split(".")[1]:
+            return other
+    return amount
+
+
 def parse_receipt(text: str) -> ParsedReceipt:
-    lines = [ln.rstrip() for ln in text.replace("\r", "\n").split("\n")]
+    main, _, second = text.partition(ALT_MARK)
+    lines = [ln.rstrip() for ln in main.replace("\r", "\n").split("\n")]
     flat = "\n".join(lines)
+    both = f"{flat}\n{second}" if second else flat
     remarks = _labelled(lines, (_REMARKS,), continuation=0)
     if remarks and re.fullmatch(r"no\s+remarks?", remarks, re.I):
         remarks = None
     return ParsedReceipt(
-        transaction_id=_transaction_id(flat),
-        txn_date=_txn_date(flat),
+        transaction_id=_transaction_id(both),
+        txn_date=_txn_date(both),
         payment_to=_labelled(lines, _TO_LABELS, continuation=2),
         payment_from=_labelled(lines, _FROM_LABELS, continuation=2),
         remarks=remarks[:500] if remarks else None,
-        amount=_amount(flat),
+        amount=_reconciled_amount(both, second),
     )

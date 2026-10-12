@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from app.modules.petty_cash.parser import parse_receipt
+from app.modules.petty_cash.parser import ALT_MARK, parse_receipt
 
 NEFT_SCREEN = """\
 Payment initiated successfully
@@ -33,7 +33,7 @@ def test_neft_confirmation_screen() -> None:
     p = parse_receipt(NEFT_SCREEN)
     assert p.transaction_id == "2559007396"
     assert p.txn_date == date(2026, 10, 6)
-    assert p.payment_to == "optimaprojectors INDUSIND BANK LIMITED | A/c: 2597 4177 7969"
+    assert p.payment_to == "optimaprojectors"  # not the bank / account lines under it
     assert p.amount == "162840.00"
     assert p.payment_from == "5915 0500 0085 LATIGID ENGINEERING PRIVATE LIMITED"
     assert p.remarks == "amruppaporter"
@@ -131,3 +131,32 @@ def test_headline_amount_with_the_rupee_sign_misread() -> None:
     assert parse_receipt("Paid\n₹1250.00\n").amount == "1250.00"
     assert parse_receipt("Paid\n250.00\n").amount == "250.00"  # no sign to drop
     assert parse_receipt("Paid\n%1,250.00\n").amount == "1250.00"
+
+
+PHONEPE = """UPI payment successful
+Transaction reference ID: 176334618745
+7 Oct '26, 05:46 PM
+
+Payment to SIMA BAI
+Phonepe | 9826357346-2@ybl
+Amount 71,020.00
+Payment from latig73232.ibz @icici
+Remarks indoreofficecleaning
+
+Back to home Another payment
+"""
+
+
+def test_phonepe_receipt_with_the_payee_handle_under_the_name() -> None:
+    # The second reading (rupee sign read as "%") settles the amount: the first has a stray "7".
+    got = parse_receipt(PHONEPE + ALT_MARK + "Amount %1,020.00\n")
+    assert got.transaction_id == "176334618745"
+    assert got.txn_date == date(2026, 10, 7)
+    assert got.payment_to == "SIMA BAI"  # not "SIMA BAI Phonepe | 9826357346-2@ybl"
+    assert got.payment_from == "latig73232.ibz@icici"
+    assert got.remarks == "indoreofficecleaning"
+    assert got.amount == "1020.00"
+
+
+def test_a_genuine_amount_is_kept_when_both_readings_agree() -> None:
+    assert parse_receipt(PHONEPE + ALT_MARK + "Amount 71,020.00\n").amount == "71020.00"

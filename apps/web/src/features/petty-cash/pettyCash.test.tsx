@@ -193,4 +193,53 @@ describe('Petty Cash', () => {
     await waitFor(() => expect(api.called('DELETE /api/v1/petty-cash/p1')).toHaveLength(1))
     expect(await screen.findByText('No petty cash entries yet')).toBeInTheDocument()
   })
+
+  it('reads several receipts at once and reviews and saves them one by one', async () => {
+    let n = 0
+    const api = open({
+      'GET /api/v1/petty-cash': () => json({ items: [], total: 0, total_amount: '0.00' }),
+      'POST /api/v1/petty-cash/extract': () =>
+        json(n++ === 0 ? proposal : { ...proposal, transaction_id: 'T2', payment_to: 'SIMA BAI' }),
+      'POST /api/v1/petty-cash': () => json(entry(), 201),
+    })
+    await userEvent.click(await screen.findByRole('button', { name: 'Add from receipt' }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.upload(within(dialog).getByLabelText('Choose receipt'), [
+      new File(['x'], 'a.png', { type: 'image/png' }),
+      new File(['y'], 'b.png', { type: 'image/png' }),
+    ])
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Read 2 receipts' }))
+
+    expect(await within(dialog).findByText(/Receipt 1 of 2/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Transaction ID')).toHaveValue('2559007396')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save and next' }))
+
+    expect(await within(dialog).findByText(/Receipt 2 of 2/)).toBeInTheDocument()
+    expect(within(dialog).getByLabelText('Payment to')).toHaveValue('SIMA BAI')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save entry' }))
+
+    await waitFor(() => expect(api.called('POST /api/v1/petty-cash')).toHaveLength(2))
+    expect(await screen.findByText('2 petty cash entries added')).toBeInTheDocument()
+  })
+
+  it('exports the list to Excel using the current search', async () => {
+    const created = vi.fn(() => 'blob:x')
+    URL.createObjectURL = created
+    URL.revokeObjectURL = vi.fn()
+    const api = open({
+      'GET /api/v1/petty-cash': () =>
+        json({ items: [entry()], total: 1, total_amount: '162840.00' }),
+      'GET /api/v1/petty-cash/export': () =>
+        new Response('xlsx', {
+          headers: {
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          },
+        }),
+    })
+    await userEvent.type(await screen.findByLabelText('Search'), 'optima')
+    await userEvent.click(await screen.findByRole('button', { name: 'Export to Excel' }))
+    await waitFor(() => expect(api.called('GET /api/v1/petty-cash/export')).toHaveLength(1))
+    expect(api.called('GET /api/v1/petty-cash/export')[0]!.request.url).toContain('q=optima')
+    await waitFor(() => expect(created).toHaveBeenCalled())
+  })
 })

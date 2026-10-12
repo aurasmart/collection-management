@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import contextlib
 import io
+from typing import cast
 
 import pdfplumber
 from fastapi import HTTPException
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageStat, UnidentifiedImageError
 
 from app.core.config import get_settings
 from app.modules.imports.ocr import (
@@ -22,6 +23,7 @@ from app.modules.imports.ocr import (
     TesseractProvider,
     get_ocr_provider,
 )
+from app.modules.petty_cash.parser import ALT_MARK
 from app.modules.settings.service import unprocessable
 
 RECEIPT_MAX_BYTES = 5 * 1024 * 1024
@@ -67,15 +69,51 @@ def clean_name(name: str | None) -> str | None:
     return base[:200] or None
 
 
-def _prepare(image: Image.Image) -> Image.Image:
-    gray = image.convert("L")
+def _crop_to_content(gray: Image.Image) -> Image.Image:
+    """Drop a plain border (e.g. a phone screen shown on a black desktop): the text is then scaled
+    by its own size, not by the size of the surrounding empty space."""
+    last_x, last_y = gray.width - 1, gray.height - 1
+    corners = [cast(int, gray.getpixel(p)) for p in ((0, 0), (last_x, 0), (0, last_y))]
+    background = sorted(corners)[1]  # the median corner
+    mask = gray.point(lambda v: 255 if abs(v - background) > 24 else 0)
+    box = mask.getbbox()
+    if box is None:
+        return gray
+    pad = 12
+    box = (
+        max(0, box[0] - pad),
+        max(0, box[1] - pad),
+        min(gray.width, box[2] + pad),
+        min(gray.height, box[3] + pad),
+    )
+    area = (box[2] - box[0]) * (box[3] - box[1])
+    return gray.crop(box) if area < 0.9 * gray.width * gray.height else gray
+
+
+def _is_light(gray: Image.Image) -> bool:
+    return bool(ImageStat.Stat(gray).mean[0] >= 128)
+
+
+def _darken_faint_text(gray: Image.Image) -> Image.Image:
+    """Receipts print their labels in pale grey; Tesseract drops them. Push every non-white tone
+    darker (a gamma curve) so the labels survive."""
+    return gray.point([round(255 * (v / 255) ** 2) for v in range(256)])
+
+
+def _scale(gray: Image.Image) -> Image.Image:
     if gray.width < OCR_MIN_WIDTH:
         scale = OCR_MIN_WIDTH / gray.width
-        gray = gray.resize((OCR_MIN_WIDTH, round(gray.height * scale)), Image.Resampling.LANCZOS)
-    elif gray.width > OCR_MAX_WIDTH:
+        return gray.resize((OCR_MIN_WIDTH, round(gray.height * scale)), Image.Resampling.LANCZOS)
+    if gray.width > OCR_MAX_WIDTH:
         scale = OCR_MAX_WIDTH / gray.width
-        gray = gray.resize((OCR_MAX_WIDTH, round(gray.height * scale)), Image.Resampling.LANCZOS)
+        return gray.resize((OCR_MAX_WIDTH, round(gray.height * scale)), Image.Resampling.LANCZOS)
     return gray
+
+
+def _prepare(image: Image.Image) -> Image.Image:
+    """For PDF pages: crop, darken if light, scale."""
+    gray = _crop_to_content(image.convert("L"))
+    return _scale(_darken_faint_text(gray) if _is_light(gray) else gray)
 
 
 def receipt_text(data: bytes, content_type: str) -> str:
@@ -91,17 +129,27 @@ def receipt_text(data: bytes, content_type: str) -> str:
 
 
 def _image_text(provider: OcrProvider, img: Image.Image) -> str:
-    """The whole image, plus a second look at the top banner where UPI apps print the amount in
+    """The text on the image. Light receipts are read twice: once darkened (so pale grey labels
+    survive) and once plain, which reads the rupee sign more kindly; the parser cross-checks the
+    amount. Dark screens get a second look at the top banner, where UPI apps print the amount in
     large white-on-colour type that the main pass skips."""
-    gray = _prepare(img)
-    text = provider.recognize(gray, timeout=MAIN_TIMEOUT)
-    banner = gray.crop((0, 0, gray.width, int(gray.height * 0.25)))
-    with contextlib.suppress(OcrError):  # the main pass already worked; the banner is a bonus
-        if isinstance(provider, TesseractProvider):
-            text += "\n" + provider.recognize(banner, timeout=BANNER_TIMEOUT, psm=11)
+    base = _crop_to_content(img.convert("L"))
+    light = _is_light(base)
+    text = provider.recognize(
+        _scale(_darken_faint_text(base) if light else base), timeout=MAIN_TIMEOUT
+    )
+    extra = ""
+    with contextlib.suppress(OcrError):  # the main pass already worked; this is a bonus
+        if light:
+            extra = provider.recognize(_scale(base), timeout=BANNER_TIMEOUT)
         else:
-            text += "\n" + provider.recognize(banner, timeout=BANNER_TIMEOUT)
-    return text
+            gray = _scale(base)
+            banner = gray.crop((0, 0, gray.width, int(gray.height * 0.25)))
+            if isinstance(provider, TesseractProvider):
+                extra = provider.recognize(banner, timeout=BANNER_TIMEOUT, psm=11)
+            else:
+                extra = provider.recognize(banner, timeout=BANNER_TIMEOUT)
+    return f"{text}{ALT_MARK}{extra}" if extra else text
 
 
 def _timeout() -> float:
