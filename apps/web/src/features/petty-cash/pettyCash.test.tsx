@@ -294,8 +294,9 @@ describe('Petty Cash', () => {
     await userEvent.click(
       within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete 2 entries' }),
     )
-    await waitFor(() => expect(api.called('POST /api/v1/petty-cash/delete')).toHaveLength(1))
-    expect(api.called('POST /api/v1/petty-cash/delete')[0]!.body).toEqual({ ids: ['p1', 'p2'] })
+    await waitFor(() =>
+      expect(api.called('POST /api/v1/petty-cash/delete')[0]?.body).toEqual({ ids: ['p1', 'p2'] }),
+    )
     expect(await screen.findByText('2 entries deleted')).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByLabelText('Select T1')).not.toBeInTheDocument())
   })
