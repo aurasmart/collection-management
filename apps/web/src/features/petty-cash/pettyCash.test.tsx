@@ -47,6 +47,11 @@ function open(routes: Parameters<typeof mockApi>[0]) {
   return api
 }
 
+async function pick(item: string) {
+  await userEvent.click(await screen.findByRole('button', { name: 'Add' }))
+  await userEvent.click(await screen.findByRole('menuitem', { name: item }))
+}
+
 beforeEach(() => fake.reset())
 
 describe('Petty Cash', () => {
@@ -92,7 +97,7 @@ describe('Petty Cash', () => {
         return json(entry(), 201)
       },
     })
-    await userEvent.click(await screen.findByRole('button', { name: 'Add from receipt' }))
+    await pick('Import from receipts')
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getByRole('button', { name: 'Read receipt' })).toBeDisabled()
     await userEvent.upload(
@@ -126,6 +131,31 @@ describe('Petty Cash', () => {
     expect(await screen.findByRole('table')).toBeInTheDocument()
   })
 
+  it('adds an entry by hand, keeping the chosen receipt as proof without reading it', async () => {
+    const api = open({
+      'GET /api/v1/petty-cash': () => json({ items: [], total: 0, total_amount: '0.00' }),
+      'POST /api/v1/petty-cash': () => json(entry(), 201),
+    })
+    await pick('Add manually with receipt')
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: 'Continue' })).toBeDisabled()
+    await userEvent.upload(
+      within(dialog).getByLabelText('Choose receipt'),
+      new File(['x'], 'proof.png', { type: 'image/png' }),
+    )
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Continue' }))
+    await userEvent.type(await within(dialog).findByLabelText('Payment to'), 'Porter')
+    await userEvent.type(within(dialog).getByLabelText(/Amount/), '500')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save entry' }))
+    await waitFor(() => expect(api.called('POST /api/v1/petty-cash')).toHaveLength(1))
+    expect(api.called('POST /api/v1/petty-cash/extract')).toHaveLength(0)
+    const form = api.called('POST /api/v1/petty-cash')[0]!.body as FormData
+    expect(JSON.parse(form.get('fields') as string)).toMatchObject({
+      payment_to: 'Porter',
+      amount: '500',
+    })
+  })
+
   it('warns when the receipt could not be read and lets the user type the values', async () => {
     open({
       'GET /api/v1/petty-cash': () => json({ items: [], total: 0, total_amount: '0.00' }),
@@ -143,7 +173,7 @@ describe('Petty Cash', () => {
           duplicate: false,
         }),
     })
-    await userEvent.click(await screen.findByRole('button', { name: 'Add from receipt' }))
+    await pick('Import from receipts')
     const dialog = await screen.findByRole('dialog')
     await userEvent.upload(
       within(dialog).getByLabelText('Choose receipt'),
@@ -164,7 +194,7 @@ describe('Petty Cash', () => {
           422,
         ),
     })
-    await userEvent.click(await screen.findByRole('button', { name: 'Add from receipt' }))
+    await pick('Import from receipts')
     const dialog = await screen.findByRole('dialog')
     await userEvent.upload(
       within(dialog).getByLabelText('Choose receipt'),
@@ -202,7 +232,7 @@ describe('Petty Cash', () => {
         json(n++ === 0 ? proposal : { ...proposal, transaction_id: 'T2', payment_to: 'SIMA BAI' }),
       'POST /api/v1/petty-cash': () => json(entry(), 201),
     })
-    await userEvent.click(await screen.findByRole('button', { name: 'Add from receipt' }))
+    await pick('Import from receipts')
     const dialog = await screen.findByRole('dialog')
     await userEvent.upload(within(dialog).getByLabelText('Choose receipt'), [
       new File(['x'], 'a.png', { type: 'image/png' }),

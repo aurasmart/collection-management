@@ -68,7 +68,9 @@ function ReceiptsPicker({
   onChange,
   onProblem,
   disabled,
+  single,
 }: {
+  single: boolean
   files: File[]
   onChange: (files: File[]) => void
   onProblem: (message: string | null) => void
@@ -82,7 +84,7 @@ function ReceiptsPicker({
         ref={input}
         id={id}
         type="file"
-        multiple
+        multiple={!single}
         accept={RECEIPT_ACCEPT}
         className="sr-only"
         tabIndex={-1}
@@ -94,7 +96,7 @@ function ReceiptsPicker({
           if (!chosen.length) return
           const bad = chosen.find((f) => receiptProblem(f))
           const good = chosen.filter((f) => !receiptProblem(f))
-          const next = [...files, ...good].slice(0, MAX_FILES)
+          const next = single ? good.slice(0, 1) : [...files, ...good].slice(0, MAX_FILES)
           onProblem(
             bad
               ? `${bad.name}: ${receiptProblem(bad)}`
@@ -114,7 +116,13 @@ function ReceiptsPicker({
           onClick={() => input.current?.click()}
         >
           <Paperclip className="size-4" aria-hidden="true" />
-          {files.length ? 'Add more files' : 'Choose receipts'}
+          {single
+            ? files.length
+              ? 'Choose a different file'
+              : 'Choose receipt as proof'
+            : files.length
+              ? 'Add more files'
+              : 'Choose receipts'}
         </Button>
       </div>
       {files.length > 0 && (
@@ -149,20 +157,25 @@ function ReceiptsPicker({
  */
 export function EntryDialog({
   entry,
+  manual = false,
   open,
   onOpenChange,
 }: {
   entry?: PettyCashEntry
+  /** Type the details by hand; the chosen receipt is kept as proof and is not read. */
+  manual?: boolean
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
-  return open ? <EntryForm entry={entry} onOpenChange={onOpenChange} /> : null
+  return open ? <EntryForm entry={entry} manual={manual} onOpenChange={onOpenChange} /> : null
 }
 
 function EntryForm({
   entry,
+  manual,
   onOpenChange,
 }: {
+  manual: boolean
   entry?: PettyCashEntry
   onOpenChange: (open: boolean) => void
 }) {
@@ -190,6 +203,11 @@ function EntryForm({
   async function read() {
     if (!files.length) return
     setMessage('')
+    if (manual) {
+      setItems([{ file: files[0]!, proposal: null, values: BLANK }])
+      setIndex(0)
+      return
+    }
     const out: Item[] = []
     for (const [i, file] of files.entries()) {
       setProgress({ done: i, total: files.length })
@@ -279,13 +297,23 @@ function EntryForm({
     <Modal
       open
       onOpenChange={onOpenChange}
-      title={entry ? 'Edit petty cash entry' : 'Add petty cash from receipts'}
+      title={
+        entry
+          ? 'Edit petty cash entry'
+          : manual
+            ? 'Add petty cash manually'
+            : 'Add petty cash from receipts'
+      }
       description={
         reviewing
-          ? many
-            ? `Receipt ${index + 1} of ${items.length}${item?.file ? ` · ${item.file.name}` : ''}. Check every value against the receipt and correct anything that is wrong.`
-            : 'Check every value against the receipt and correct anything that is wrong.'
-          : `Choose one or more payment receipts: UPI or bank screenshots (PNG, JPG, WebP) or PDFs, up to 5 MB each. Up to ${MAX_FILES} at a time.`
+          ? manual
+            ? 'Type the payment details. The receipt you chose is saved with the entry as proof.'
+            : many
+              ? `Receipt ${index + 1} of ${items.length}${item?.file ? ` · ${item.file.name}` : ''}. Check every value against the receipt and correct anything that is wrong.`
+              : 'Check every value against the receipt and correct anything that is wrong.'
+          : manual
+            ? 'Choose the payment receipt to keep as proof (screenshot, photo or PDF, up to 5 MB). You then type the details yourself.'
+            : `Choose one or more payment receipts: UPI or bank screenshots (PNG, JPG, WebP) or PDFs, up to 5 MB each. Up to ${MAX_FILES} at a time.`
       }
       footer={
         <>
@@ -305,7 +333,11 @@ function EntryForm({
             </>
           ) : (
             <Button onClick={read} loading={reading} disabled={!files.length}>
-              {files.length > 1 ? `Read ${files.length} receipts` : 'Read receipt'}
+              {manual
+                ? 'Continue'
+                : files.length > 1
+                  ? `Read ${files.length} receipts`
+                  : 'Read receipt'}
             </Button>
           )}
         </>
@@ -319,6 +351,7 @@ function EntryForm({
             onChange={setFiles}
             onProblem={setProblem}
             disabled={reading}
+            single={manual}
           />
           {problem && <p className="text-danger">{problem}</p>}
           {progress && (
@@ -326,10 +359,12 @@ function EntryForm({
               Reading receipt {Math.min(progress.done + 1, progress.total)} of {progress.total}…
             </p>
           )}
-          <p className="text-sm text-ink-2">
-            We read the text on each receipt to fill in the details. You review them one by one
-            before anything is saved.
-          </p>
+          {!manual && (
+            <p className="text-sm text-ink-2">
+              We read the text on each receipt to fill in the details. You review them one by one
+              before anything is saved.
+            </p>
+          )}
         </div>
       ) : (
         <form id="petty-cash-form" onSubmit={save} className="flex flex-col gap-4" noValidate>

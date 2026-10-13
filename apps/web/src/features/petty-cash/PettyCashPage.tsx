@@ -4,10 +4,12 @@ import {
   Download,
   ExternalLink,
   Pencil,
+  PencilLine,
   Plus,
   Search,
   SlidersHorizontal,
   Trash2,
+  Upload,
   Wallet,
 } from 'lucide-react'
 import {
@@ -20,6 +22,7 @@ import {
   TextField,
   useToast,
 } from '@/components/ui'
+import * as Menu from '@radix-ui/react-dropdown-menu'
 import { EntryDialog } from '@/features/petty-cash/EntryDialog'
 import {
   NO_FILTERS,
@@ -68,7 +71,7 @@ export function PettyCashPage() {
   const [deletingMany, setDeletingMany] = useState(false)
   const [page, setPage] = useState(0)
   const q = filters.q
-  const [adding, setAdding] = useState(false)
+  const [adding, setAdding] = useState<'read' | 'manual' | null>(null)
   const [exporting, setExporting] = useState(false)
   const [editing, setEditing] = useState<PettyCashEntry | null>(null)
   const [deleting, setDeleting] = useState<PettyCashEntry | null>(null)
@@ -127,12 +130,11 @@ export function PettyCashPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Petty Cash</h1>
-          <p className="text-ink-2">Upload a payment receipt and keep a record of what was paid.</p>
+          <p className="text-ink-2">
+            Keep a record of what was paid, with the payment receipt as proof.
+          </p>
         </div>
-        <Button onClick={() => setAdding(true)}>
-          <Plus className="size-5" aria-hidden="true" />
-          Add from receipt
-        </Button>
+        <AddMenu onPick={setAdding} />
       </div>
 
       {data && (total > 0 || filtered) && (
@@ -283,16 +285,9 @@ export function PettyCashPage() {
           description={
             filtered
               ? 'Try a different search, or reset the filters.'
-              : 'Add a receipt and we will fill in the transaction details for you to review.'
+              : 'Read a receipt and we will fill in the details for you to review, or add an entry by hand with the receipt as proof.'
           }
-          action={
-            filtered ? undefined : (
-              <Button onClick={() => setAdding(true)}>
-                <Plus className="size-5" aria-hidden="true" />
-                Add from receipt
-              </Button>
-            )
-          }
+          action={filtered ? undefined : <AddMenu onPick={setAdding} />}
         />
       ) : (
         <>
@@ -427,7 +422,14 @@ export function PettyCashPage() {
         </>
       )}
 
-      <EntryDialog open={adding} onOpenChange={setAdding} />
+      <EntryDialog
+        key={adding ?? 'closed'}
+        manual={adding === 'manual'}
+        open={adding !== null}
+        onOpenChange={(o) => {
+          if (!o) setAdding(null)
+        }}
+      />
       {editing && (
         <EntryDialog
           entry={editing}
@@ -508,5 +510,37 @@ function Cell({
     >
       {children}
     </td>
+  )
+}
+
+/** The "+ Add" button: choose between reading receipts and typing an entry by hand. */
+function AddMenu({ onPick }: { onPick: (mode: 'read' | 'manual') => void }) {
+  const item =
+    'flex min-h-11 cursor-pointer items-center gap-3 rounded-control px-3 outline-none data-[highlighted]:bg-accent-soft'
+  return (
+    <Menu.Root>
+      <Menu.Trigger asChild>
+        <Button>
+          <Plus className="size-5" aria-hidden="true" />
+          Add
+        </Button>
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Content
+          align="end"
+          sideOffset={6}
+          className="z-50 min-w-64 rounded-control border border-line bg-surface p-1 shadow-popover"
+        >
+          <Menu.Item className={item} onSelect={() => onPick('read')}>
+            <Upload className="size-4" aria-hidden="true" />
+            Import from receipts
+          </Menu.Item>
+          <Menu.Item className={item} onSelect={() => onPick('manual')}>
+            <PencilLine className="size-4" aria-hidden="true" />
+            Add manually with receipt
+          </Menu.Item>
+        </Menu.Content>
+      </Menu.Portal>
+    </Menu.Root>
   )
 }
