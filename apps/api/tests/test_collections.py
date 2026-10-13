@@ -48,7 +48,7 @@ ROWS = [
         "customer_name": "Priya Traders",
         "phone": "9876543211",
         "amount_due": "2500.50",
-        "due_date": "20/10/2026",
+        "due_date": "20/10/2050",
     },
     {"customer_name": "Asha Stores", "amount_due": "800"},
 ]
