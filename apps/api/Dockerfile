@@ -1,5 +1,5 @@
 # Backend image: used for BOTH the API (default CMD) and the worker (override CMD: python -m app.worker).
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
